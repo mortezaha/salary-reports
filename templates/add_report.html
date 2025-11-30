@@ -1,55 +1,116 @@
-<!-- ... (بخش head و استایل‌ها بدون تغییر باقی می‌ماند) ... -->
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ثبت گزارش جدید</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; margin: 20px; background-color: #f4f4f4; }
+        /* این محفظه ظاهر فرم را مرتب و مرکزی می‌کند */
+        .form-container {
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 25px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .submit-btn { width: 100%; background-color: #007bff; color: white; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .submit-btn:hover { background-color: #0056b3; }
+    </style>
+</head>
 <body>
-    <h1>فرم ثبت گزارش حقوق</h1>
-    <form action="{{ url_for('submit') }}" method="post">
-        <div class="form-group">
-            <label for="province">استان:</label>
-            <select name="province" id="province" required>
-                <option value="">انتخاب کنید</option>
-                {% for prov in provinces %}
-                <option value="{{ prov }}">{{ prov }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="unit_name">نام واحد/مرکز:</label>
-            <select name="unit_name" id="unit_name" required disabled>
-                <option value="">ابتدا استان را انتخاب کنید</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="month">ماه:</label>
-            <select name="month" required>
-                <option value="">انتخاب کنید</option>
-                {% for m in months %}
-                <option value="{{ m }}">{{ m }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="year">سال:</label>
-            <select name="year" required>
-                {% for y in years %}
-                <option value="{{ y }}" {% if y == '1404' %}selected{% endif %}>{{ y }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="staff_payment">درصد پرداخت حقوق (کارکنان):</label>
-            <input type="text" id="staff_payment" name="staff_payment">
-        </div>
-        <div class="form-group">
-            <label for="faculty_payment">درصد پرداخت حقوق (هیات علمی):</label>
-            <input type="text" id="faculty_payment" name="faculty_payment">
-        </div>
-        <!-- فیلد جدید معوقات -->
-        <div class="form-group">
-            <label for="arrears_payment">درصد پرداخت معوقات فروردین:</label>
-            <input type="text" id="arrears_payment" name="arrears_payment">
-        </div>
-        <button type="submit" class="submit-btn">ثبت گزارش</button>
-    </form>
+    <div class="form-container">
+        <h1 style="text-align: center;">فرم ثبت گزارش حقوق</h1>
+        <form action="{{ url_for('submit') }}" method="post">
+            <div class="form-group">
+                <label for="province">استان:</label>
+                <select name="province" id="province" required>
+                    <option value="">انتخاب کنید</option>
+                    {% for prov in provinces %}
+                    <option value="{{ prov }}">{{ prov }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="unit_name">نام واحد/مرکز:</label>
+                <select name="unit_name" id="unit_name" required disabled>
+                    <option value="">ابتدا استان را انتخاب کنید</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="month">ماه:</label>
+                <select name="month" required>
+                    <option value="">انتخاب کنید</option>
+                    {% for m in months %}
+                    <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="year">سال:</label>
+                <select name="year" required>
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if y == '1404' %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="staff_payment">درصد پرداخت حقوق (کارکنان):</label>
+                <input type="text" id="staff_payment" name="staff_payment">
+            </div>
+            <div class="form-group">
+                <label for="faculty_payment">درصد پرداخت حقوق (هیات علمی):</label>
+                <input type="text" id="faculty_payment" name="faculty_payment">
+            </div>
+            <div class="form-group">
+                <label for="arrears_payment">درصد پرداخت معوقات فروردین:</label>
+                <input type="text" id="arrears_payment" name="arrears_payment">
+            </div>
+            <button type="submit" class="submit-btn">ثبت گزارش</button>
+        </form>
+    </div>
 
-<!-- ... (بخش جاوا اسکریپت بدون تغییر باقی می‌ماند) ... -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const provinceSelect = document.getElementById('province');
+        const unitSelect = document.getElementById('unit_name');
+
+        provinceSelect.addEventListener('change', function() {
+            const selectedProvince = this.value;
+            
+            unitSelect.innerHTML = '<option value="">در حال بارگذاری...</option>';
+            unitSelect.disabled = true;
+
+            if (selectedProvince) {
+                // این تابع fetch اصلاح شده است
+                fetch(`/get_units/${selectedProvince}`, {
+                    credentials: 'same-origin' // این خط مشکل را حل می‌کند
+                })
+                    .then(response => response.json())
+                    .then(units => {
+                        unitSelect.innerHTML = '<option value="">یک واحد را انتخاب کنید</option>';
+                        units.forEach(unit => {
+                            const option = document.createElement('option');
+                            option.value = unit;
+                            option.textContent = unit;
+                            unitSelect.appendChild(option);
+                        });
+                        unitSelect.disabled = false;
+                    })
+                    .catch(error => {
+                        console.error('خطا در دریافت واحدها:', error);
+                        unitSelect.innerHTML = '<option value="">خطا در بارگذاری</option>';
+                    });
+            } else {
+                unitSelect.innerHTML = '<option value="">ابتدا استان را انتخاب کنید</option>';
+                unitSelect.disabled = true;
+            }
+        });
+    });
+</script>
+
 </body>
 </html>
