@@ -2,115 +2,123 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>ثبت گزارش جدید</title>
+    <title>داشبورد گزارش حقوق</title>
     <style>
-        body { font-family: 'Tahoma', sans-serif; margin: 20px; background-color: #f4f4f4; }
-        /* این محفظه ظاهر فرم را مرتب و مرکزی می‌کند */
-        .form-container {
-            max-width: 500px;
-            margin: 20px auto;
-            padding: 25px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        body { font-family: 'Tahoma', sans-serif; margin: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; }
+        .header h1 { margin: 0; }
+        .header-actions a { margin-left: 10px; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; }
+        .add-btn { background-color: #28a745; }
+        .logout-btn { background-color: #dc3545; }
+        .print-btn { background-color: #6c757d; }
+        .filter-form { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .filter-form div { display: inline-block; margin-left: 15px; margin-bottom: 10px; }
+        .filter-form label { display: inline-block; margin-left: 5px; }
+        .filter-btn { background-color: #17a2b8; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .bulk-actions { margin-bottom: 15px; }
+        .bulk-actions button { background-color: #dc3545; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .action-btns a { margin: 0 5px; text-decoration: none; padding: 4px 8px; border-radius: 3px; color: white; font-size: 12px; }
+        .edit-btn { background-color: #ffc107; }
+        .delete-btn { background-color: #dc3545; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; }
+        .alert-info { background-color: #d1ecf1; color: #0c5460; }
+        .alert-warning { background-color: #fff3cd; color: #856404; }
+        
+        /* استایل چاپ */
+        @media print {
+            body { font-size: 10pt; }
+            .header, .filter-form, .bulk-actions, .action-btns, th:last-child, td:last-child { display: none; }
+            table { border: 1px solid #000; }
+            th, td { border: 1px solid #000; padding: 5px; }
         }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .submit-btn { width: 100%; background-color: #007bff; color: white; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
-        .submit-btn:hover { background-color: #0056b3; }
     </style>
 </head>
 <body>
-    <div class="form-container">
-        <h1 style="text-align: center;">فرم ثبت گزارش حقوق</h1>
-        <form action="{{ url_for('submit') }}" method="post">
-            <div class="form-group">
-                <label for="province">استان:</label>
-                <select name="province" id="province" required>
-                    <option value="">انتخاب کنید</option>
-                    {% for prov in provinces %}
-                    <option value="{{ prov }}">{{ prov }}</option>
-                    {% endfor %}
-                </select>
+    <div class="header">
+        <h1>گزارش‌های ثبت‌شده</h1>
+        {% if current_user.is_authenticated %}
+            <div class="header-actions">
+                <a href="{{ url_for('add_report') }}" class="add-btn">ثبت گزارش جدید</a>
+                <a href="#" onclick="window.print()" class="print-btn">چاپ</a>
+                <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.display_name }})</a>
             </div>
-            <div class="form-group">
-                <label for="unit_name">نام واحد/مرکز:</label>
-                <select name="unit_name" id="unit_name" required disabled>
-                    <option value="">ابتدا استان را انتخاب کنید</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="month">ماه:</label>
-                <select name="month" required>
-                    <option value="">انتخاب کنید</option>
-                    {% for m in months %}
-                    <option value="{{ m }}">{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="year">سال:</label>
-                <select name="year" required>
-                    {% for y in years %}
-                    <option value="{{ y }}" {% if y == '1404' %}selected{% endif %}>{{ y }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="staff_payment">درصد پرداخت حقوق (کارکنان):</label>
-                <input type="text" id="staff_payment" name="staff_payment">
-            </div>
-            <div class="form-group">
-                <label for="faculty_payment">درصد پرداخت حقوق (هیات علمی):</label>
-                <input type="text" id="faculty_payment" name="faculty_payment">
-            </div>
-            <div class="form-group">
-                <label for="arrears_payment">درصد پرداخت معوقات فروردین:</label>
-                <input type="text" id="arrears_payment" name="arrears_payment">
-            </div>
-            <button type="submit" class="submit-btn">ثبت گزارش</button>
-        </form>
+        {% endif %}
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form id="filterForm" class="filter-form">
+        <div><label for="filter_province">فیلتر استان:</label><select name="province" id="filter_province"><option value="">همه استان‌ها</option>{% for prov in provinces %}<option value="{{ prov }}" {% if prov == selected_province %}selected{% endif %}>{{ prov }}</option>{% endfor %}</select></div>
+        <div><label for="filter_month">فیلتر ماه:</label><select name="month" id="filter_month"><option value="">همه ماه‌ها</option>{% for m in months %}<option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
+        <div><label for="filter_year">فیلتر سال:</label><select name="year" id="filter_year">{% for y in years %}<option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+    </form>
+    
+    <form id="bulkDeleteForm" action="{{ url_for('bulk_delete') }}" method="post" style="display: inline;">
+        <div class="bulk-actions">
+            <button type="submit" onclick="return confirm('آیا از حذف گزارش‌های انتخاب شده اطمینان دارید؟');">حذف گزارش‌های انتخاب شده</button>
+        </div>
+        <table id="reportsTable">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll"></th>
+                    <th>استان</th><th>واحد/مرکز</th><th>ماه</th><th>سال</th><th>درصد پرداخت کارکنان</th><th>درصد پرداخت هیات علمی</th><th>درصد پرداخت معوقات</th><th>تاریخ ثبت</th><th>ثبت کننده</th><th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                <tr>
+                    <td><input type="checkbox" name="report_ids" value="{{ report['id'] }}"></td>
+                    <td>{{ report['province'] }}</td><td>{{ report['unit_name'] }}</td><td>{{ report['month'] }}</td><td>{{ report['year'] }}</td>
+                    <td>{{ report['staff_payment'] or '-' }}</td><td>{{ report['faculty_payment'] or '-' }}</td><td>{{ report['arrears_payment'] or '-' }}</td>
+                    <td>{{ report['submission_date'] }}</td><td>{{ report['submitted_by'] or '-' }}</td>
+                    <td class="action-btns">
+                        <a href="{{ url_for('edit_report', report_id=report['id']) }}" class="edit-btn">ویرایش</a>
+                        <form action="{{ url_for('delete_report', report_id=report['id']) }}" method="post" style="display:inline;">
+                            <button type="submit" class="delete-btn" onclick="return confirm('آیا از حذف این گزارش اطمینان دارید؟');">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="12">هیچ گزارشی برای این فیلترها یافت نشد.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const provinceSelect = document.getElementById('province');
-        const unitSelect = document.getElementById('unit_name');
+        const filterForm = document.getElementById('filterForm');
+        const filterSelects = filterForm.querySelectorAll('select');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const reportCheckboxes = document.querySelectorAll('input[name="report_ids"]');
 
-        provinceSelect.addEventListener('change', function() {
-            const selectedProvince = this.value;
-            
-            unitSelect.innerHTML = '<option value="">در حال بارگذاری...</option>';
-            unitSelect.disabled = true;
-
-            if (selectedProvince) {
-                // این تابع fetch اصلاح شده است
-                fetch(`/get_units/${selectedProvince}`, {
-                    credentials: 'same-origin' // این خط مشکل را حل می‌کند
-                })
-                    .then(response => response.json())
-                    .then(units => {
-                        unitSelect.innerHTML = '<option value="">یک واحد را انتخاب کنید</option>';
-                        units.forEach(unit => {
-                            const option = document.createElement('option');
-                            option.value = unit;
-                            option.textContent = unit;
-                            unitSelect.appendChild(option);
-                        });
-                        unitSelect.disabled = false;
-                    })
-                    .catch(error => {
-                        console.error('خطا در دریافت واحدها:', error);
-                        unitSelect.innerHTML = '<option value="">خطا در بارگذاری</option>';
-                    });
-            } else {
-                unitSelect.innerHTML = '<option value="">ابتدا استان را انتخاب کنید</option>';
-                unitSelect.disabled = true;
-            }
+        function updateTable() {
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams(formData);
+            fetch('/?' + params.toString()).then(response => response.text()).then(html => {
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+                const newTableBody = newDoc.querySelector('#reportsTable tbody');
+                document.querySelector('#reportsTable tbody').innerHTML = newTableBody.innerHTML;
+            });
+        }
+        filterSelects.forEach(select => select.addEventListener('change', updateTable));
+        
+        selectAllCheckbox.addEventListener('change', function() {
+            reportCheckboxes.forEach(cb => cb.checked = this.checked);
         });
     });
 </script>
-
 </body>
 </html>
