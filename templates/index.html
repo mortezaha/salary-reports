@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>داشبورد گزارش حقوق</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; margin: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; }
+        .header h1 { margin: 0; }
+        .header-actions a { margin-left: 10px; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; }
+        .add-btn { background-color: #28a745; }
+        .logout-btn { background-color: #dc3545; }
+        .filter-form { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .filter-form div { display: inline-block; margin-left: 15px; margin-bottom: 10px; }
+        .filter-form label { display: inline-block; margin-left: 5px; }
+        .filter-btn { background-color: #17a2b8; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th { background-color: #f2f2f2; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; }
+        .alert-info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+
+    <!-- هدر صفحه با دکمه‌های شرطی -->
+    <div class="header">
+        <h1>گزارش‌های ثبت‌شده</h1>
+        {% if current_user.is_authenticated %}
+            <div class="header-actions">
+                <a href="{{ url_for('add_report') }}" class="add-btn">ثبت گزارش جدید</a>
+                <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.username }})</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- نمایش پیام‌های فلش (مثل پیام خروج موفق) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- فرم فیلتر -->
+    <form action="{{ url_for('index') }}" method="get" class="filter-form">
+        <div>
+            <label for="filter_province">فیلتر استان:</label>
+            <select name="province" id="filter_province">
+                <option value="">همه استان‌ها</option>
+                {% for prov in provinces %}
+                <option value="{{ prov }}" {% if prov == selected_province %}selected{% endif %}>{{ prov }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter_month">فیلتر ماه:</label>
+            <select name="month" id="filter_month">
+                <option value="">همه ماه‌ها</option>
+                {% for m in months %}
+                <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter_year">فیلتر سال:</label>
+            <input type="text" name="year" value="{{ selected_year }}" size="5">
+        </div>
+        <button type="submit" class="filter-btn">اعمال فیلتر</button>
+    </form>
+    
+    <!-- جدول گزارش‌ها -->
+    <table>
+        <thead>
+            <tr>
+                <th>استان</th>
+                <th>واحد/مرکز</th>
+                <th>ماه</th>
+                <th>سال</th>
+                <th>درصد پرداخت کارکنان</th>
+                <th>درصد پرداخت هیات علمی</th>
+                <th>تاریخ ثبت</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+                <td>{{ report['province'] }}</td>
+                <td>{{ report['unit_name'] }}</td>
+                <td>{{ report['month'] }}</td>
+                <td>{{ report['year'] }}</td>
+                <td>{{ report['staff_payment'] or '-' }}</td>
+                <td>{{ report['faculty_payment'] or '-' }}</td>
+                <td>{{ report['submission_date'] }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7">هیچ گزارشی برای این فیلترها یافت نشد.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
