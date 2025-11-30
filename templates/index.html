@@ -15,7 +15,7 @@
         .filter-form label { display: inline-block; margin-left: 5px; }
         .filter-btn { background-color: #17a2b8; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; } /* مرکزچین کردن */
         th { background-color: #f2f2f2; }
         .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .alert-success { background-color: #d4edda; color: #155724; }
@@ -24,19 +24,16 @@
     </style>
 </head>
 <body>
-
-    <!-- هدر صفحه با دکمه‌های شرطی -->
     <div class="header">
         <h1>گزارش‌های ثبت‌شده</h1>
         {% if current_user.is_authenticated %}
             <div class="header-actions">
                 <a href="{{ url_for('add_report') }}" class="add-btn">ثبت گزارش جدید</a>
-                <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.username }})</a>
+                <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.display_name }})</a>
             </div>
         {% endif %}
     </div>
 
-    <!-- نمایش پیام‌های فلش (مثل پیام خروج موفق) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -45,8 +42,7 @@
         {% endif %}
     {% endwith %}
 
-    <!-- فرم فیلتر -->
-    <form action="{{ url_for('index') }}" method="get" class="filter-form">
+    <form id="filterForm" class="filter-form">
         <div>
             <label for="filter_province">فیلتر استان:</label>
             <select name="province" id="filter_province">
@@ -67,13 +63,15 @@
         </div>
         <div>
             <label for="filter_year">فیلتر سال:</label>
-            <input type="text" name="year" value="{{ selected_year }}" size="5">
+            <select name="year" id="filter_year">
+                {% for y in years %}
+                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
         </div>
-        <button type="submit" class="filter-btn">اعمال فیلتر</button>
     </form>
     
-    <!-- جدول گزارش‌ها -->
-    <table>
+    <table id="reportsTable">
         <thead>
             <tr>
                 <th>استان</th>
@@ -82,7 +80,9 @@
                 <th>سال</th>
                 <th>درصد پرداخت کارکنان</th>
                 <th>درصد پرداخت هیات علمی</th>
+                <th>درصد پرداخت معوقات</th>
                 <th>تاریخ ثبت</th>
+                <th>ثبت کننده</th>
             </tr>
         </thead>
         <tbody>
@@ -94,14 +94,44 @@
                 <td>{{ report['year'] }}</td>
                 <td>{{ report['staff_payment'] or '-' }}</td>
                 <td>{{ report['faculty_payment'] or '-' }}</td>
+                <td>{{ report['arrears_payment'] or '-' }}</td>
                 <td>{{ report['submission_date'] }}</td>
+                <td>{{ report['submitted_by'] or '-' }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="7">هیچ گزارشی برای این فیلترها یافت نشد.</td>
+                <td colspan="9">هیچ گزارشی برای این فیلترها یافت نشد.</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterForm = document.getElementById('filterForm');
+        const filterSelects = filterForm.querySelectorAll('select');
+
+        // تابعی برای به‌روزرسانی جدول
+        function updateTable() {
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams(formData);
+            
+            fetch('/?' + params.toString())
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(html, 'text/html');
+                    const newTableBody = newDoc.querySelector('#reportsTable tbody');
+                    document.querySelector('#reportsTable tbody').innerHTML = newTableBody.innerHTML;
+                });
+        }
+
+        // اضافه کردن event listener به هر کشویی
+        filterSelects.forEach(select => {
+            select.addEventListener('change', updateTable);
+        });
+    });
+</script>
+
 </body>
 </html>
