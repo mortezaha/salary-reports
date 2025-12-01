@@ -5,9 +5,9 @@
     <title>داشبورد گزارش حقوق</title>
     <style>
         body { font-family: 'Tahoma', sans-serif; margin: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; flex-wrap: wrap; }
         .header h1 { margin: 0; }
-        .header-actions a { margin-left: 10px; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; }
+        .header-actions a { margin-left: 10px; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; font-size: 14px; }
         .add-btn { background-color: #28a745; }
         .logout-btn { background-color: #dc3545; }
         .print-btn { background-color: #6c757d; }
@@ -40,11 +40,17 @@
 </head>
 <body>
     <div class="header">
-        <h1>گزارش‌های ثبت‌شده</h1>
+        <h1>گزارش‌های پرداخت حقوق ماهانه</h1>
         {% if current_user.is_authenticated %}
             <div class="header-actions">
                 <a href="{{ url_for('add_report') }}" class="add-btn">ثبت گزارش جدید</a>
                 <a href="#" onclick="window.print()" class="print-btn">چاپ</a>
+                <!-- لینک‌های جدید فقط برای ادمین نمایش داده می‌شوند -->
+                {% if is_admin() %}
+                    <a href="{{ url_for('manage_users') }}" style="background-color: #6c757d;">مدیریت کاربران</a>
+                    <a href="{{ url_for('bulk_upload') }}" style="background-color: #17a2b8;">آپلود گروهی</a>
+                    <a href="{{ url_for('backup') }}" style="background-color: #28a745;">پشتیبان‌گیری</a>
+                {% endif %}
                 <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.display_name }})</a>
             </div>
         {% endif %}
@@ -81,7 +87,9 @@
                     <td><input type="checkbox" name="report_ids" value="{{ report['id'] }}"></td>
                     <td>{{ report['province'] }}</td><td>{{ report['unit_name'] }}</td><td>{{ report['month'] }}</td><td>{{ report['year'] }}</td>
                     <td>{{ report['staff_payment'] or '-' }}</td><td>{{ report['faculty_payment'] or '-' }}</td><td>{{ report['arrears_payment'] or '-' }}</td>
-                    <td>{{ report['submission_date'] }}</td><td>{{ report['submitted_by'] or '-' }}</td>
+                    <!-- این ستون برای نمایش تاریخ شمسی و اعداد فارسی به‌روز شد -->
+                    <td>{{ to_persian_number(report.submission_date_persian) }}</td>
+                    <td>{{ report['submitted_by'] or '-' }}</td>
                     <td class="action-btns">
                         <a href="{{ url_for('edit_report', report_id=report['id']) }}" class="edit-btn">ویرایش</a>
                         <form action="{{ url_for('delete_report', report_id=report['id']) }}" method="post" style="display:inline;">
@@ -106,19 +114,26 @@
         function updateTable() {
             const formData = new FormData(filterForm);
             const params = new URLSearchParams(formData);
-            fetch('/?' + params.toString()).then(response => response.text()).then(html => {
-                const parser = new DOMParser();
-                const newDoc = parser.parseFromString(html, 'text/html');
-                const newTableBody = newDoc.querySelector('#reportsTable tbody');
-                document.querySelector('#reportsTable tbody').innerHTML = newTableBody.innerHTML;
-            });
+            
+            fetch('/?' + params.toString())
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(html, 'text/html');
+                    const newTableBody = newDoc.querySelector('#reportsTable tbody');
+                    document.querySelector('#reportsTable tbody').innerHTML = newTableBody.innerHTML;
+                });
         }
-        filterSelects.forEach(select => select.addEventListener('change', updateTable));
-        
+
+        filterSelects.forEach(select => {
+            select.addEventListener('change', updateTable);
+        });
+
         selectAllCheckbox.addEventListener('change', function() {
             reportCheckboxes.forEach(cb => cb.checked = this.checked);
         });
     });
 </script>
+
 </body>
 </html>

@@ -1,12 +1,15 @@
 import sqlite3
 import os
 import jdatetime
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
+import pandas as pd
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = 'your-very-secret-key-here'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
 # --- تنظیمات Flask-Login ---
 login_manager = LoginManager()
@@ -14,7 +17,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # --- داده‌های برنامه ---
-PROVINCE_UNITS = {
+PROVINCE_UNITS = { # ... (بدون تغییر) }
     "همدان": ["همدان", "ملایر", "تویسرکان", "اسدآباد", "مرکز بهار", "مرکز کبودرآهنگ", "مرکز رزن", "مرکز قروه در گزین", "مرکز سامن"],
     "مرکزی": ["اراک", "ساوه", "آشتیان", "تفرش", "نراق", "کمیجان", "مرکز خنداب", "خمین", "محلات", "دلیجان", "زرندیه", "مرکز جاسب", "مرکز مهاجران", "مرکز شازند", "مرکز آستانه", "فراهان"],
     "کردستان": ["سنندج", "سقز", "مریوان", "قروه", "بیجار", "مرکز بانه"],
@@ -24,18 +27,23 @@ PROVINCE_UNITS = {
 MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
 YEARS = [str(y) for y in range(1400, 1411)]
 
-# --- مدل کاربر ---
+# --- مدل کاربر (برای Flask-Login) ---
 class User(UserMixin):
-    def __init__(self, id, username, password_hash, display_name):
-        self.id = id
-        self.username = username
-        self.password_hash = password_hash
-        self.display_name = display_name
-
-users = { 1: User(1, 'admin', generate_password_hash('password'), 'مدیر سیستم') }
+    def __init__(self, user_data):
+        self.id = str(user_data['id'])
+        self.username = user_data['username']
+        self.password_hash = user_data['password_hash']
+        self.display_name = user_data['display_name']
+        self.role = user_data['role']
 
 @login_manager.user_loader
-def load_user(user_id): return users.get(int(user_id))
+def load_user(user_id):
+    conn = get_db_connection()
+    user_data = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    if user_data:
+        return User(user_data)
+    return None
 
 # --- توابع دیتابیس ---
 def get_db_connection():
@@ -44,47 +52,78 @@ def get_db_connection():
     return conn
 
 def ensure_db_exists():
-    if not os.path.exists('database.db'):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-        CREATE TABLE reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            province TEXT NOT NULL,
-            unit_name TEXT NOT NULL,
-            month TEXT NOT NULL,
-            year TEXT NOT NULL,
-            staff_payment TEXT,
-            faculty_payment TEXT,
-            arrears_payment TEXT,
-            submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            submitted_by TEXT
-        )
-        ''')
-        conn.commit()
-        conn.close()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # جدول کاربران
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL
+    )
+    ''')
+    
+    # جدول گزارش‌ها
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        province TEXT NOT NULL,
+        unit_name TEXT NOT NULL,
+        month TEXT NOT NULL,
+        year TEXT NOT NULL,
+        staff_payment TEXT,
+        faculty_payment TEXT,
+        arrears_payment TEXT,
+        submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        submitted_by TEXT
+    )
+    ''')
+    
+    # ایجاد کاربر ادمین پیش‌فرض اگر وجود نداشته باشد
+    admin_user = cursor.execute('SELECT * FROM users WHERE username = ?', ('admin',)).fetchone()
+    if not admin_user:
+        cursor.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
+                       ('admin', generate_password_hash('password'), 'مدیر سیستم', 'admin'))
+    
+    conn.commit()
+    conn.close()
+
 ensure_db_exists()
 
+# --- توابع کمکی ---
 def to_persian_number(s):
     persian_digits = "۰۱۲۳۴۵۶۷۸۹"
     s = str(s)
     return s.translate(str.maketrans("0123456789", persian_digits))
 
-# --- مسیرهای برنامه ---
+def is_admin():
+    return current_user.is_authenticated and current_user.role == 'admin'
+
+# --- مسیرهای اصلی برنامه ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']; password = request.form['password']
-        user = next((u for u in users.values() if u.username == username), None)
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user); flash('با موفقیت وارد شدید.', 'success'); return redirect(url_for('index'))
-        else: flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
+        conn = get_db_connection()
+        user_data = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+        if user_data and check_password_hash(user_data['password_hash'], password):
+            login_user(User(user_data))
+            flash('با موفقیت وارد شدید.', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
-    logout_user(); flash('با موفقیت خارج شدید.', 'info'); return redirect(url_for('login'))
+    logout_user()
+    flash('با موفقیت خارج شدید.', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
@@ -96,18 +135,28 @@ def index():
     if filter_month: query += ' AND month = ?'; params.append(filter_month)
     if filter_year: query += ' AND year = ?'; params.append(filter_year)
     query += ' ORDER BY year DESC, month DESC, submission_date DESC'
-    reports = conn.execute(query, params).fetchall()
+    
+    reports_db = conn.execute(query, params).fetchall()
+    
+    # تبدیل تاریخ به شمسی و اعداد به فارسی
+    reports = []
+    for report in reports_db:
+        report_list = dict(report)
+        if report_list['submission_date']:
+            g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
+            report_list['submission_date_persian'] = g_date.strftime('%Y/%m/%d %H:%M')
+        reports.append(report_list)
+
     conn.close()
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
                            selected_province=filter_province, selected_month=filter_month, selected_year=filter_year,
-                           provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number)
+                           provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, is_admin=is_admin())
 
 @app.route('/add')
 @login_required
 def add_report():
     return render_template('add_report.html', months=MONTHS, years=YEARS, provinces=PROVINCE_UNITS.keys())
 
-# مسیر ویرایش
 @app.route('/edit/<int:report_id>')
 @login_required
 def edit_report(report_id):
@@ -115,25 +164,22 @@ def edit_report(report_id):
     report = conn.execute('SELECT * FROM reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
     if report is None:
-        flash('گزارش یافت نشد.', 'danger')
-        return redirect(url_for('index'))
+        flash('گزارش یافت نشد.', 'danger'); return redirect(url_for('index'))
     return render_template('add_report.html', report=report, months=MONTHS, years=YEARS, provinces=PROVINCE_UNITS.keys())
 
-# مسیر ثبت (هم برای جدید و هم برای ویرایش)
 @app.route('/submit', methods=['POST'])
 @login_required
 def submit():
-    report_id = request.form.get('report_id') # دریافت آیدی در حالت ویرایش
+    report_id = request.form.get('report_id')
     province = request.form['province']; unit_name = request.form['unit_name']; month = request.form['month']; year = request.form['year']
     staff_payment = request.form['staff_payment']; faculty_payment = request.form['faculty_payment']; arrears_payment = request.form['arrears_payment']
-
     if province and unit_name and month and year:
         conn = get_db_connection()
-        if report_id: # حالت ویرایش
+        if report_id:
             conn.execute('UPDATE reports SET province = ?, unit_name = ?, month = ?, year = ?, staff_payment = ?, faculty_payment = ?, arrears_payment = ? WHERE id = ?',
                         (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, report_id))
             flash('گزارش با موفقیت ویرایش شد.', 'success')
-        else: # حالت ثبت جدید
+        else:
             conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                         (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, current_user.display_name))
             flash('گزارش با موفقیت ثبت شد.', 'success')
@@ -141,7 +187,6 @@ def submit():
         return redirect(url_for('index'))
     return "لطفاً فیلدهای ضروری را پر کنید.", 400
 
-# مسیر حذف
 @app.route('/delete/<int:report_id>', methods=['POST'])
 @login_required
 def delete_report(report_id):
@@ -152,15 +197,11 @@ def delete_report(report_id):
     flash('گزارش با موفقیت حذف شد.', 'info')
     return redirect(url_for('index'))
 
-# مسیر حذف گروهی
 @app.route('/bulk_delete', methods=['POST'])
 @login_required
 def bulk_delete():
     report_ids = request.form.getlist('report_ids')
-    if not report_ids:
-        flash('هیچ گزارشی برای حذف انتخاب نشده است.', 'warning')
-        return redirect(url_for('index'))
-    
+    if not report_ids: flash('هیچ گزارشی برای حذف انتخاب نشده است.', 'warning'); return redirect(url_for('index'))
     placeholders = ','.join('?' for _ in report_ids)
     conn = get_db_connection()
     conn.execute(f'DELETE FROM reports WHERE id IN ({placeholders})', report_ids)
@@ -169,12 +210,106 @@ def bulk_delete():
     flash(f'{to_persian_number(len(report_ids))} گزارش با موفقیت حذف شدند.', 'info')
     return redirect(url_for('index'))
 
-
 @app.route('/get_units/<province>')
 @login_required
 def get_units(province):
     units = PROVINCE_UNITS.get(province, [])
     return jsonify(units)
+
+# --- مسیرهای مدیریت کاربران (فقط ادمین) ---
+@app.route('/users')
+@login_required
+def manage_users():
+    if not is_admin(): return redirect(url_for('index'))
+    conn = get_db_connection()
+    users = conn.execute('SELECT id, username, display_name, role FROM users').fetchall()
+    conn.close()
+    return render_template('manage_users.html', users=users, to_persian_number=to_persian_number)
+
+@app.route('/add_user')
+@login_required
+def add_user():
+    if not is_admin(): return redirect(url_for('index'))
+    return render_template('user_form.html')
+
+@app.route('/submit_user', methods=['POST'])
+@login_required
+def submit_user():
+    if not is_admin(): return redirect(url_for('index'))
+    username = request.form['username']; display_name = request.form['display_name']; role = request.form['role']; password = request.form['password']
+    if username and password:
+        conn = get_db_connection()
+        try:
+            conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
+                       (username, generate_password_hash(password), display_name, role))
+            conn.commit()
+            flash('کاربر با موفقیت اضافه شد.', 'success')
+        except sqlite3.IntegrityError:
+            flash('نام کاربری تکراری است.', 'danger')
+        finally:
+            conn.close()
+    return redirect(url_for('manage_users'))
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not is_admin(): return redirect(url_for('index'))
+    if str(user_id) == current_user.id: flash('نمی‌توانید حساب خود را حذف کنید.', 'warning'); return redirect(url_for('manage_users'))
+    conn = get_db_connection()
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    flash('کاربر با موفقیت حذف شد.', 'info')
+    return redirect(url_for('manage_users'))
+
+# --- مسیرهای پشتیبان‌گیری و بازیابی ---
+@app.route('/backup')
+@login_required
+def backup_db():
+    if not is_admin(): return redirect(url_for('index'))
+    return send_file('database.db', as_attachment=True, download_name=f'backup_{jdatetime.datetime.now().strftime("%Y-%m-%d")}.db')
+
+@app.route('/restore', methods=['POST'])
+@login_required
+def restore_db():
+    if not is_admin(): return redirect(url_for('index'))
+    if 'file' not in request.files: flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
+    file = request.files['file']
+    if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
+    if file and file.filename.endswith('.db'):
+        file.save('database.db')
+        flash('پشتیبان با موفقیت بازیابی شد.', 'success')
+    else:
+        flash('فایل نامعتبر است. فقط فایل‌های .db مجاز هستند.', 'danger')
+    return redirect(url_for('index'))
+
+# --- مسیر آپلود گروهی ---
+@app.route('/bulk_upload')
+@login_required
+def bulk_upload_page():
+    if not is_admin(): return redirect(url_for('index'))
+    return render_template('bulk_upload.html')
+
+@app.route('/process_bulk_upload', methods=['POST'])
+@login_required
+def process_bulk_upload():
+    if not is_admin(): return redirect(url_for('index'))
+    if 'file' not in request.files: flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('bulk_upload_page'))
+    file = request.files['file']
+    if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('bulk_upload_page'))
+    
+    try:
+        df = pd.read_excel(file)
+        conn = get_db_connection()
+        for index, row in df.iterrows():
+            conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                       (row['استان'], row['واحد/مرکز'], row['ماه'], row['سال'], row['درصد کارکنان'], row['درصد هیات علمی'], row['درصد معوقات'], current_user.display_name))
+        conn.commit()
+        conn.close()
+        flash(f'{to_persian_number(len(df))} گزارش با موفقیت آپلود شدند.', 'success')
+    except Exception as e:
+        flash(f'خطا در پردازش فایل: {e}', 'danger')
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

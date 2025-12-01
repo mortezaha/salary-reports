@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head><meta charset="UTF-8"><title>مدیریت کاربران</title>
+    <style>body{font-family:'Tahoma',sans-serif;margin:20px;}.container{max-width:800px;margin:auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #ddd;padding:8px;text-align:center;}th{background:#f2f2f2;}.add-btn{background:#28a745;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;display:inline-block;margin-bottom:20px;}.action-btns a{margin:0 5px;text-decoration:none;padding:4px 8px;border-radius:3px;color:white;font-size:12px;}.delete-btn{background:#dc3545;}</style>
+</head>
+<body>
+    <div class="container">
+        <h1>مدیریت کاربران</h1>
+        <a href="{{ url_for('add_user') }}" class="add-btn">افزودن کاربر جدید</a>
+        <table>
+            <thead><tr><th>شناسه</th><th>نام کاربری</th><th>نام نمایشی</th><th>نقش</th><th>عملیات</th></tr></thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ to_persian_number(user.id) }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.display_name }}</td>
+                    <td>{{ user.role }}</td>
+                    <td class="action-btns">
+                        <form action="{{ url_for('delete_user', user_id=user.id) }}" method="post" style="display:inline;">
+                            <button type="submit" class="delete-btn" onclick="return confirm('آیا از حذف این کاربر اطمینان دارید؟');">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">هیچ کاربری یافت نشد.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="{{ url_for('index') }}" style="margin-top:20px;display:inline-block;">بازگشت به داشبورد</a>
+    </div>
+</body>
+</html>
