@@ -17,7 +17,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # --- داده‌های برنامه ---
-PROVINCE_UNITS = { # ... (بدون تغییر) }
+PROVINCE_UNITS = {
     "همدان": ["همدان", "ملایر", "تویسرکان", "اسدآباد", "مرکز بهار", "مرکز کبودرآهنگ", "مرکز رزن", "مرکز قروه در گزین", "مرکز سامن"],
     "مرکزی": ["اراک", "ساوه", "آشتیان", "تفرش", "نراق", "کمیجان", "مرکز خنداب", "خمین", "محلات", "دلیجان", "زرندیه", "مرکز جاسب", "مرکز مهاجران", "مرکز شازند", "مرکز آستانه", "فراهان"],
     "کردستان": ["سنندج", "سقز", "مریوان", "قروه", "بیجار", "مرکز بانه"],
@@ -93,7 +93,6 @@ def ensure_db_exists():
 
 ensure_db_exists()
 
-# --- توابع کمکی ---
 def to_persian_number(s):
     persian_digits = "۰۱۲۳۴۵۶۷۸۹"
     s = str(s)
@@ -102,7 +101,7 @@ def to_persian_number(s):
 def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
 
-# --- مسیرهای اصلی برنامه ---
+# --- مسیرهای برنامه ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -148,9 +147,12 @@ def index():
         reports.append(report_list)
 
     conn.close()
+    
+    # <<<< توجه به این خط >>>
+    # اینجا ما خود تابع is_admin را ارسال می‌کنیم، نه نتیجه آن را (is_admin())
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
                            selected_province=filter_province, selected_month=filter_month, selected_year=filter_year,
-                           provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, is_admin=is_admin())
+                           provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, is_admin=is_admin)
 
 @app.route('/add')
 @login_required
@@ -164,7 +166,8 @@ def edit_report(report_id):
     report = conn.execute('SELECT * FROM reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
     if report is None:
-        flash('گزارش یافت نشد.', 'danger'); return redirect(url_for('index'))
+        flash('گزارش یافت نشد.', 'danger')
+        return redirect(url_for('index'))
     return render_template('add_report.html', report=report, months=MONTHS, years=YEARS, provinces=PROVINCE_UNITS.keys())
 
 @app.route('/submit', methods=['POST'])
@@ -201,7 +204,10 @@ def delete_report(report_id):
 @login_required
 def bulk_delete():
     report_ids = request.form.getlist('report_ids')
-    if not report_ids: flash('هیچ گزارشی برای حذف انتخاب نشده است.', 'warning'); return redirect(url_for('index'))
+    if not report_ids:
+        flash('هیچ گزارشی برای حذف انتخاب نشده است.', 'warning')
+        return redirect(url_for('index'))
+    
     placeholders = ','.join('?' for _ in report_ids)
     conn = get_db_connection()
     conn.execute(f'DELETE FROM reports WHERE id IN ({placeholders})', report_ids)
@@ -294,9 +300,9 @@ def bulk_upload_page():
 @login_required
 def process_bulk_upload():
     if not is_admin(): return redirect(url_for('index'))
-    if 'file' not in request.files: flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('bulk_upload_page'))
+    if 'file' not in request.files: flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
     file = request.files['file']
-    if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('bulk_upload_page'))
+    if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
     
     try:
         df = pd.read_excel(file)
