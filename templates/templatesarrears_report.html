@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>گزارش معوقات</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; margin: 20px; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .back-link { display: inline-block; margin-top: 20px; padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>گزارش معوقات پرداخت نشده (کمتر از ۱۰۰٪)</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>استان</th>
+                    <th>واحد/مرکز</th>
+                    <th>ماه</th>
+                    <th>سال</th>
+                    <th>درصد پرداخت معوقات</th>
+                    <th>ثبت کننده</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                <tr>
+                    <td>{{ report['province'] }}</td>
+                    <td>{{ report['unit_name'] }}</td>
+                    <td>{{ report['month'] }}</td>
+                    <td>{{ report['year'] }}</td>
+                    <td>{{ report['arrears_payment'] }}</td>
+                    <td>{{ report['submitted_by'] or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">هیچ گزارشی با معوقات پرداخت نشده یافت نشد.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="{{ url_for('index') }}" class="back-link">بازگشت به داشبورد</a>
+    </div>
+</body>
+</html>

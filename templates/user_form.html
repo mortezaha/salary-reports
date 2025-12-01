@@ -1,19 +1,56 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-<head><meta charset="UTF-8"><title>افزودن کاربر جدید</title>
-    <style>body{font-family:'Tahoma',sans-serif;margin:20px;background:#f4f4f4;}.form-container{max-width:500px;margin:20px auto;padding:25px;background:#fff;border-radius:8px;box-shadow:0 0 15px rgba(0,0,0,0.1);}.form-group{margin-bottom:15px;}label{display:block;margin-bottom:5px;font-weight:bold;}input[type="text"],select{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;}.submit-btn{width:100%;background:#007bff;color:white;padding:12px;border:none;border-radius:5px;cursor:pointer;font-size:16px;}</style>
+<head>
+    <meta charset="UTF-8">
+    <title>{% if user %}ویرایش کاربر{% else %}افزودن کاربر جدید{% endif %}</title>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .form-container { max-width: 500px; margin: 20px auto; padding: 25px; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="password"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .submit-btn { width: 100%; background-color: #007bff; color: white; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .submit-btn:hover { background-color: #0056b3; }
+        .password-hint { font-size: 12px; color: #6c757d; margin-top: 5px; }
+    </style>
 </head>
 <body>
     <div class="form-container">
-        <h1 style="text-align:center;">افزودن کاربر جدید</h1>
+        <h1 style="text-align: center;">{% if user %}ویرایش کاربر{% else %}افزودن کاربر جدید{% endif %}</h1>
         <form action="{{ url_for('submit_user') }}" method="post">
-            <div class="form-group"><label for="username">نام کاربری:</label><input type="text" id="username" name="username" required></div>
-            <div class="form-group"><label for="display_name">نام نمایشی:</label><input type="text" id="display_name" name="display_name" required></div>
-            <div class="form-group"><label for="role">نقش:</label><select name="role" id="role" required><option value="editor">ویرایشگر</option><option value="viewer">بیننده</option></select></div>
-            <div class="form-group"><label for="password">رمز عبور:</label><input type="password" id="password" name="password" required></div>
-            <button type="submit" class="submit-btn">افزودن کاربر</button>
+            <!-- اگر در حالت ویرایش هستیم، آیدی کاربر را به صورت مخفی ارسال می‌کنیم -->
+            {% if user %}
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            {% endif %}
+
+            <div class="form-group">
+                <label for="username">نام کاربری:</label>
+                <input type="text" id="username" name="username" value="{{ user.username if user else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label for="display_name">نام نمایشی:</label>
+                <input type="text" id="display_name" name="display_name" value="{{ user.display_name if user else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label for="role">نقش:</label>
+                <select name="role" id="role" required>
+                    <option value="editor" {% if not user or user.role == 'editor' %}selected{% endif %}>ویرایشگر</option>
+                    <option value="viewer" {% if user and user.role == 'viewer' %}selected{% endif %}>بیننده</option>
+                    <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>ادمین</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="password">رمز عبور:</label>
+                <input type="password" id="password" name="password">
+                {% if user %}
+                <p class="password-hint">برای تغییر رمز عبور، مقدار جدید را وارد کنید. در غیر این صورت، رمز فعلی بدون تغییر باقی می‌ماند.</p>
+                {% else %}
+                <p class="password-hint">رمز عبور باید حداقل ۸ کاراکتر باشد.</p>
+                {% endif %}
+            </div>
+            <button type="submit" class="submit-btn">{% if user %}ویرایش کاربر{% else %}افزودن کاربر{% endif %}</button>
         </form>
-        <a href="{{ url_for('manage_users') }}" style="margin-top:20px;display:inline-block;">بازگشت به لیست کاربران</a>
+        <a href="{{ url_for('manage_users') }}" style="margin-top: 20px; display: inline-block;">بازگشت به لیست کاربران</a>
     </div>
 </body>
 </html>

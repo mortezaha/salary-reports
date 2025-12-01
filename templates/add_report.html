@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>{% if report %}ویرایش گزارش{% else %}ثبت گزارش جدید{% endif %}</title>
+    <title>{% if report %}ویرایش گزارش حقوق{% else %}ثبت گزارش حقوق جدید{% endif %}</title>
     <style>
         body { font-family: 'Tahoma', sans-serif; margin: 20px; background-color: #f4f4f4; }
         .form-container { max-width: 500px; margin: 20px auto; padding: 25px; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
@@ -15,21 +15,60 @@
 </head>
 <body>
     <div class="form-container">
-        <h1 style="text-align: center;">{% if report %}ویرایش گزارش حقوق{% else %}ثبت گزارش حقوق{% endif %}</h1>
-        <!-- فرم به صورت پویا به مسیر درست ارسال می‌شود -->
-        <form action="{% if report %}{{ url_for('submit') }}?report_id={{ report.id }}{% else %}{{ url_for('submit') }}{% endif %}" method="post">
-            <!-- یک فیلد مخفی برای ارسال آیدی در حالت ویرایش -->
+        <h1 style="text-align: center;">{% if report %}ویرایش گزارش حقوق{% else %}ثبت گزارش حقوق جدید{% endif %}</h1>
+        <form action="{{ url_for('submit') }}" method="post">
+            <!-- این فیلد مخفی برای ارسال آیدی در حالت ویرایش است -->
             {% if report %}
             <input type="hidden" name="report_id" value="{{ report.id }}">
             {% endif %}
-            
-            <div class="form-group"><label for="province">استان:</label><select name="province" id="province" required><option value="">انتخاب کنید</option>{% for prov in provinces %}<option value="{{ prov }}" {% if report and report.province == prov %}selected{% endif %}>{{ prov }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label for="unit_name">نام واحد/مرکز:</label><select name="unit_name" id="unit_name" required><option value="">ابتدا استان را انتخاب کنید</option>{% if report %}<option value="{{ report.unit_name }}" selected>{{ report.unit_name }}</option>{% endif %}</select></div>
-            <div class="form-group"><label for="month">ماه:</label><select name="month" required><option value="">انتخاب کنید</option>{% for m in months %}<option value="{{ m }}" {% if report and report.month == m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label for="year">سال:</label><select name="year" required>{% for y in years %}<option value="{{ y }}" {% if report and report.year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label for="staff_payment">درصد پرداخت حقوق (کارکنان):</label><input type="text" id="staff_payment" name="staff_payment" value="{% if report %}{{ report.staff_payment }}{% endif %}"></div>
-            <div class="form-group"><label for="faculty_payment">درصد پرداخت حقوق (هیات علمی):</label><input type="text" id="faculty_payment" name="faculty_payment" value="{% if report %}{{ report.faculty_payment }}{% endif %}"></div>
-            <div class="form-group"><label for="arrears_payment">درصد پرداخت معوقات فروردین:</label><input type="text" id="arrears_payment" name="arrears_payment" value="{% if report %}{{ report.arrears_payment }}{% endif %}"></div>
+
+            <div class="form-group">
+                <label for="province">استان:</label>
+                <select name="province" id="province" required>
+                    <option value="">انتخاب کنید</option>
+                    {% for prov in provinces %}
+                    <option value="{{ prov }}" {% if report and report.province == prov %}selected{% endif %}>{{ prov }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="unit_name">نام واحد/مرکز:</label>
+                <select name="unit_name" id="unit_name" required>
+                    <option value="">ابتدا استان را انتخاب کنید</option>
+                    {% if report %}
+                    <option value="{{ report.unit_name }}" selected>{{ report.unit_name }}</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="month">ماه:</label>
+                <select name="month" required>
+                    <option value="">انتخاب کنید</option>
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if report and report.month == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="year">سال:</label>
+                <select name="year" required>
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if report and report.year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="staff_payment">درصد پرداخت حقوق (کارکنان):</label>
+                <input type="text" id="staff_payment" name="staff_payment" value="{{ report.staff_payment if report else '' }}">
+            </div>
+            <div class="form-group">
+                <label for="faculty_payment">درصد پرداخت حقوق (هیات علمی):</label>
+                <input type="text" id="faculty_payment" name="faculty_payment" value="{{ report.faculty_payment if report else '' }}">
+            </div>
+            <div class="form-group">
+                <label for="arrears_payment">درصد پرداخت معوقات فروردین:</label>
+                <input type="text" id="arrears_payment" name="arrears_payment" value="{{ report.arrears_payment if report else '' }}">
+            </div>
             <button type="submit" class="submit-btn">{% if report %}ویرایش گزارش{% else %}ثبت گزارش{% endif %}</button>
         </form>
     </div>
@@ -41,19 +80,33 @@
 
         provinceSelect.addEventListener('change', function() {
             const selectedProvince = this.value;
+            
             unitSelect.innerHTML = '<option value="">در حال بارگذاری...</option>'; unitSelect.disabled = true;
+
             if (selectedProvince) {
                 fetch(`/get_units/${selectedProvince}`, { credentials: 'same-origin' })
                     .then(response => response.json())
                     .then(units => {
                         unitSelect.innerHTML = '<option value="">یک واحد را انتخاب کنید</option>';
-                        units.forEach(unit => { const option = document.createElement('option'); option.value = unit; option.textContent = unit; unitSelect.appendChild(option); });
+                        units.forEach(unit => {
+                            const option = document.createElement('option');
+                            option.value = unit;
+                            option.textContent = unit;
+                            unitSelect.appendChild(option);
+                        });
                         unitSelect.disabled = false;
                     })
-                    .catch(error => { console.error('خطا در دریافت واحدها:', error); unitSelect.innerHTML = '<option value="">خطا در بارگذاری</option>'; });
-            } else { unitSelect.innerHTML = '<option value="">ابتدا استان را انتخاب کنید</option>'; unitSelect.disabled = true; }
+                    .catch(error => {
+                        console.error('خطا در دریافت واحدها:', error);
+                        unitSelect.innerHTML = '<option value="">خطا در بارگذاری</option>';
+                    });
+            } else {
+                unitSelect.innerHTML = '<option value="">ابتدا استان را انتخاب کنید</option>';
+                unitSelect.disabled = true;
+            }
         });
     });
 </script>
+
 </body>
 </html>
