@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = 'your-very-secret-key-here'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
 # --- تنظیمات Flask-Login ---
 login_manager = LoginManager()
@@ -54,6 +54,8 @@ def get_db_connection():
 def ensure_db_exists():
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # جدول کاربران
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +65,8 @@ def ensure_db_exists():
         role TEXT NOT NULL
     )
     ''')
+    
+    # جدول گزارش‌ها
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,16 +81,18 @@ def ensure_db_exists():
         submitted_by TEXT
     )
     ''')
+    
+    # ایجاد کاربر ادمین پیش‌فرض اگر وجود نداشته باشد
     admin_user = cursor.execute('SELECT * FROM users WHERE username = ?', ('admin',)).fetchone()
     if not admin_user:
         cursor.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
                        ('admin', generate_password_hash('password'), 'مدیر سیستم', 'admin'))
+    
     conn.commit()
     conn.close()
 
 ensure_db_exists()
 
-# --- توابع کمکی ---
 def to_persian_number(s):
     persian_digits = "۰۱۲۳۴۵۶۷۸۹"
     s = str(s)
@@ -99,7 +105,7 @@ def is_admin():
 def is_editor_or_admin():
     return current_user.is_authenticated and current_user.role in ['admin', 'editor']
 
-# --- مسیرهای اصلی برنامه ---
+# --- مسیرهای برنامه ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -135,6 +141,7 @@ def index():
     
     reports_db = conn.execute(query, params).fetchall()
     
+    # تبدیل تاریخ به شمسی و اعداد به فارسی
     reports = []
     for report in reports_db:
         report_list = dict(report)
@@ -144,10 +151,13 @@ def index():
         reports.append(report_list)
 
     conn.close()
+    
+    # <<<< توجه به این خط >>>
+    # اینجا ما خود تابع را ارسال می‌کنیم، نه نتیجه آن را
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
                            selected_province=filter_province, selected_month=filter_month, selected_year=filter_year,
                            provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, 
-                           is_admin=is_admin(), is_editor_or_admin=is_editor_or_admin())
+                           is_admin=is_admin, is_editor_or_admin=is_editor_or_admin) # <-- این خط صحیح است
 
 @app.route('/add')
 @login_required
@@ -217,7 +227,7 @@ def get_units(province):
     units = PROVINCE_UNITS.get(province, [])
     return jsonify(units)
 
-# --- مسیر مدیریت کاربران (فقط ادمین) ---
+# --- مسیرهای مدیریت کاربران (فقط ادمین) ---
 @app.route('/users')
 @login_required
 def manage_users():
@@ -241,7 +251,8 @@ def edit_user(user_id):
     user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     conn.close()
     if user is None:
-        flash('کاربر یافت نشد.', 'danger'); return redirect(url_for('manage_users'))
+        flash('کاربر یافت نشد.', 'danger')
+        return redirect(url_for('manage_users'))
     return render_template('user_form.html', user=user, roles=['admin', 'editor', 'viewer'])
 
 @app.route('/submit_user', methods=['POST'])
@@ -252,21 +263,14 @@ def submit_user():
     username = request.form['username']; display_name = request.form['display_name']; role = request.form['role']; password = request.form['password']
     if username and display_name and role:
         conn = get_db_connection()
-        if user_id: # ویرایش
-            if password: # فقط در صورت وارد کردن رمز، آن را آپدیت می‌کند
-                conn.execute('UPDATE users SET username = ?, display_name = ?, role = ?, password_hash = ? WHERE id = ?',
-                           (username, display_name, role, generate_password_hash(password), user_id))
-            else:
-                conn.execute('UPDATE users SET username = ?, display_name = ?, role = ? WHERE id = ?',
-                           (username, display_name, role, user_id))
-            flash('کاربر با موفقیت ویرایش شد.', 'success')
-        else: # افزودن
-            if password:
-                conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
-                           (username, generate_password_hash(password), display_name, role))
+        try:
+            conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
+                       (username, generate_password_hash(password), display_name, role))
             flash('کاربر با موفقیت اضافه شد.', 'success')
-        conn.commit()
-        conn.close()
+        except sqlite3.IntegrityError:
+            flash('نام کاربری تکراری است.', 'danger')
+        finally:
+            conn.close()
     return redirect(url_for('manage_users'))
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
@@ -336,7 +340,6 @@ def process_bulk_upload():
 def arrears_report():
     if not is_editor_or_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
-    # گزارش‌هایی که معوقاتشان خالی یا 100% نیستند را انتخاب می‌کنیم
     reports_db = conn.execute("SELECT * FROM reports WHERE arrears_payment IS NOT NULL AND arrears_payment != '100%' ORDER BY province, unit_name, year DESC, month DESC").fetchall()
     conn.close()
     
