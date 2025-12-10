@@ -2,152 +2,212 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>داشبورد گزارش حقوق</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سیستم گزارش‌گیری حقوق و دستمزد</title>
+    <!-- لینک به بوت‌استرپ برای استایل‌دهی بهتر -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Tahoma', sans-serif; margin: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; flex-wrap: wrap; }
-        .header h1 { margin: 0; }
-        .header-actions a { margin-left: 10px; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; font-size: 14px; }
-        .add-btn { background-color: #28a745; }
-        .logout-btn { background-color: #dc3545; }
-        .print-btn { background-color: #6c757d; }
-        .filter-form { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .filter-form div { display: inline-block; margin-left: 15px; margin-bottom: 10px; }
-        .filter-form label { display: inline-block; margin-left: 5px; }
-        .filter-btn { background-color: #17a2b8; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        .bulk-actions { margin-bottom: 15px; }
-        .bulk-actions button { background-color: #dc3545; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background-color: #f2f2f2; }
-        .action-btns a { margin: 0 5px; text-decoration: none; padding: 4px 8px; border-radius: 3px; color: white; font-size: 12px; }
-        .edit-btn { background-color: #ffc107; }
-        .delete-btn { background-color: #dc3545; }
-        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-        .alert-success { background-color: #d4edda; color: #155724; }
-        .alert-danger { background-color: #f8d7da; color: #721c24; }
-        .alert-info { background-color: #d1ecf1; color: #0c5460; }
-        .alert-warning { background-color: #fff3cd; color: #856404; }
-        
-        /* استایل‌های برجسته */
-        .salary-issue { background-color: #fff3cd; } /* زرد کم‌رنگ */
-        .arrears-issue { background-color: #f8d7da; } /* قرمز کم‌رنگ */
-
-        /* استایل چاپ */
-        @media print {
-            body { font-size: 10pt; }
-            .header, .filter-form, .bulk-actions, .action-btns, th:last-child, td:last-child { display: none; }
-            table { border: 1px solid #000; }
-            th, td { border: 1px solid #000; padding: 5px; }
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background-color: #343a40;
+        }
+        .btn-group-custom .btn {
+            margin: 5px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>گزارش‌های ثبت‌شده</h1>
-        {% if current_user.is_authenticated %}
-            <div class="header-actions">
-                <a href="{{ url_for('add_report') }}" class="add-btn">ثبت گزارش جدید</a>
-                <a href="#" onclick="window.print()" class="print-btn">چاپ</a>
-                {% if is_editor_or_admin() %}
-                    <a href="{{ url_for('arrears_report') }}" style="background-color: #fd7e14; color: white;">گزارش معوقات</a>
-                {% endif %}
-                {% if is_admin() %}
-                    <a href="{{ url_for('manage_users') }}" style="background-color: #6c757d;">مدیریت کاربران</a>
-                    <a href="{{ url_for('bulk_upload_page') }}" style="background-color: #17a2b8;">آپلود گروهی</a>
-                    <a href="{{ url_for('backup_db') }}" style="background-color: #28a745;">پشتیبان‌گیری</a>
-                {% endif %}
-                <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.display_name }})</a>
+
+    <!-- نوار ناوبری -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">گزارش حقوق و دستمزد</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    {% if is_editor_or_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('add_report') }}">ثبت گزارش جدید</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('bulk_upload_page') }}">آپلود گروهی</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('arrears_report') }}">گزارش معوقات</a>
+                    </li>
+                    {% endif %}
+                    {% if is_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('manage_users') }}">مدیریت کاربران</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <span class="navbar-text">
+                    خوش آمدید، {{ current_user.display_name }} |
+                    <a href="{{ url_for('logout') }}" class="text-light">خروج</a>
+                </span>
             </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- دکمه‌های کنترلی برای ادمین -->
+        {% if is_admin() %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>کنترل‌های ادمین</h4>
+            </div>
+            <div class="card-body btn-group-custom">
+                <a href="{{ url_for('backup_db') }}" class="btn btn-success">پشتیبان‌گیری از دیتابیس</a>
+            </div>
+             <!-- فرم بازیابی پشتیبان -->
+            <div class="card-body border-top">
+                <h5>بازیابی پشتیبان</h5>
+                <form action="{{ url_for('restore_db') }}" method="post" enctype="multipart/form-data">
+                    <div class="input-group mb-3">
+                        <input type="file" name="file" class="form-control" id="restore_file" accept=".db" required>
+                        <button class="btn btn-warning" type="submit">بازیابی</button>
+                    </div>
+                    <small class="form-text text-danger">توجه: با این عمل تمام اطلاعات فعلی جایگزین خواهند شد.</small>
+                </form>
+            </div>
+        </div>
         {% endif %}
+
+        <!-- فیلترهای گزارش -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>فیلتر گزارش‌ها</h4>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('index') }}">
+                    <div class="row g-3">
+                        <div class="col-md">
+                            <label for="province" class="form-label">استان</label>
+                            <select name="province" id="province" class="form-select">
+                                <option value="">همه استان‌ها</option>
+                                {% for province in provinces %}
+                                    <option value="{{ province }}" {% if province == selected_province %}selected{% endif %}>{{ province }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md">
+                            <label for="month" class="form-label">ماه</label>
+                            <select name="month" id="month" class="form-select">
+                                <option value="">همه ماه‌ها</option>
+                                {% for month in months %}
+                                    <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>{{ month }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md">
+                            <label for="year" class="form-label">سال</label>
+                            <select name="year" id="year" class="form-select">
+                                {% for year in years %}
+                                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">اعمال فیلتر</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- جدول گزارش‌ها -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>لیست گزارش‌ها</h4>
+                {% if is_editor_or_admin() %}
+                <form method="POST" action="{{ url_for('bulk_delete') }}" id="bulkDeleteForm">
+                    <button type="submit" class="btn btn-danger btn-sm">حذف گروهی انتخاب شده‌ها</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                {% if is_editor_or_admin() %}
+                                <th><input type="checkbox" id="selectAll"></th>
+                                {% endif %}
+                                <th>استان</th>
+                                <th>واحد/مرکز</th>
+                                <th>ماه</th>
+                                <th>سال</th>
+                                <th>درصد کارکنان</th>
+                                <th>درصد هیئت علمی</th>
+                                <th>درصد معوقات</th>
+                                <th>تاریخ ثبت</th>
+                                <th>ثبت توسط</th>
+                                {% if is_editor_or_admin() %}
+                                <th>عملیات</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                            <tr>
+                                {% if is_editor_or_admin() %}
+                                <td><input type="checkbox" name="report_ids" value="{{ report.id }}" form="bulkDeleteForm"></td>
+                                {% endif %}
+                                <td>{{ report.province }}</td>
+                                <td>{{ report.unit_name }}</td>
+                                <td>{{ report.month }}</td>
+                                <td>{{ report.year }}</td>
+                                <td>{{ report.staff_payment | percentage }}</td>
+                                <td>{{ report.faculty_payment | percentage }}</td>
+                                <td>{{ report.arrears_payment | percentage }}</td>
+                                <td>{{ report.submission_date_persian }}</td>
+                                <td>{{ report.submitted_by }}</td>
+                                {% if is_editor_or_admin() %}
+                                <td>
+                                    <a href="{{ url_for('edit_report', report_id=report.id) }}" class="btn btn-sm btn-info">ویرایش</a>
+                                    <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('آیا از حذف این گزارش مطمئن هستید؟');">حذف</button>
+                                    </form>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="{% if is_editor_or_admin() %}11{% else %}9{% endif %}" class="text-center">گزارشی یافت نشد.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <form id="filterForm" class="filter-form">
-        <div><label for="filter_province">فیلتر استان:</label><select name="province" id="filter_province"><option value="">همه استان‌ها</option>{% for prov in provinces %}<option value="{{ prov }}" {% if prov == selected_province %}selected{% endif %}>{{ prov }}</option>{% endfor %}</select></div>
-        <div><label for="filter_month">فیلتر ماه:</label><select name="month" id="filter_month"><option value="">همه ماه‌ها</option>{% for m in months %}<option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
-        <div><label for="filter_year">فیلتر سال:</label><select name="year" id="filter_year">{% for y in years %}<option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
-    </form>
-    
-    <form id="bulkDeleteForm" action="{{ url_for('bulk_delete') }}" method="post" style="display: inline;">
-        <div class="bulk-actions">
-            <button type="submit" onclick="return confirm('آیا از حذف گزارش‌های انتخاب شده اطمینان دارید؟');">حذف گزارش‌های انتخاب شده</button>
-        </div>
-        <table id="reportsTable">
-            <thead>
-                <tr>
-                    <th><input type="checkbox" id="selectAll"></th>
-                    <th>استان</th><th>واحد/مرکز</th><th>ماه</th><th>سال</th><th>درصد پرداخت کارکنان</th><th>درصد پرداخت هیات علمی</th><th>درصد پرداخت معوقات</th><th>تاریخ ثبت</th><th>ثبت کننده</th><th>عملیات</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for report in reports %}
-                <!-- منطق برجسته کردن ردیف‌ها -->
-                {% set salary_class = '' %}
-                {% set arrears_class = '' %}
-                {% if report.staff_payment and report.staff_payment != '100%' %}
-                    {% set salary_class = 'salary-issue' %}
-                {% endif %}
-                {% if report.arrears_payment and report.arrears_payment != '100%' %}
-                    {% set arrears_class = 'arrears-issue' %}
-                {% endif %}
-
-                <tr class="{{ salary_class }} {{ arrears_class }}">
-                    <td><input type="checkbox" name="report_ids" value="{{ report['id'] }}"></td>
-                    <td>{{ report['province'] }}</td><td>{{ report['unit_name'] }}</td><td>{{ report['month'] }}</td><td>{{ report['year'] }}</td>
-                    <td>{{ report['staff_payment'] or '-' }}</td><td>{{ report['faculty_payment'] or '-' }}</td><td>{{ report['arrears_payment'] or '-' }}</td>
-                    <td>{{ to_persian_number(report.submission_date_persian) }}</td><td>{{ report['submitted_by'] or '-' }}</td>
-                    <td class="action-btns">
-                        <a href="{{ url_for('edit_report', report_id=report['id']) }}" class="edit-btn">ویرایش</a>
-                        <form action="{{ url_for('delete_report', report_id=report['id']) }}" method="post" style="display:inline;">
-                            <button type="submit" class="delete-btn" onclick="return confirm('آیا از حذف این گزارش اطمینان دارید؟');">حذف</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="12">هیچ گزارشی برای این فیلترها یافت نشد.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </form>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const filterForm = document.getElementById('filterForm');
-        const filterSelects = filterForm.querySelectorAll('select');
-        const selectAllCheckbox = document.getElementById('selectAll');
-        const reportCheckboxes = document.querySelectorAll('input[name="report_ids"]');
-
-        function updateTable() {
-            const formData = new FormData(filterForm);
-            const params = new URLSearchParams(formData);
-            
-            fetch('/?' + params.toString())
-                .then(response => response.text())
-                .then(html => {
-                    const parser = new DOMParser();
-                    const newDoc = parser.parseFromString(html, 'text/html');
-                    const newTableBody = newDoc.querySelector('#reportsTable tbody');
-                    document.querySelector('#reportsTable tbody').innerHTML = newTableBody.innerHTML;
-                });
-        }
-
-        filterSelects.forEach(select => {
-            select.addEventListener('change', updateTable);
+    <!-- اسکریپت بوت‌استرپ -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // اسکریپت برای انتخاب/عدم انتخاب همه چکباکس‌ها
+        document.getElementById('selectAll').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('input[name="report_ids"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
         });
-        
-        selectAllCheckbox.addEventListener('change', function() {
-            reportCheckboxes.forEach(cb => cb.checked = this.checked);
-        });
-    });
-</script>
-
+    </script>
 </body>
 </html>
