@@ -47,7 +47,19 @@ def load_user(user_id):
 
 # --- توابع دیتابیس ---
 def get_db_connection():
-    conn = sqlite3.connect('database.db')
+    """
+    این تابع یک اتصال به دیتابیس SQLite برمی‌گرداند.
+    دیتابیس در یک مسیر دائمی (Persistent Disk) در Render ذخیره می‌شود
+    تا اطلاعات با هر بار اجرای مجدد برنامه از بین نرود.
+    """
+    # این مسیر یک دیسک دائمی است که Render فراهم می‌کند
+    db_dir = "/opt/render/project/data"
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir)
+    
+    db_path = os.path.join(db_dir, 'database.db')
+    
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -152,12 +164,10 @@ def index():
 
     conn.close()
     
-    # <<<< توجه به این خط >>>
-    # اینجا ما خود تابع را ارسال می‌کنیم، نه نتیجه آن را
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
                            selected_province=filter_province, selected_month=filter_month, selected_year=filter_year,
                            provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, 
-                           is_admin=is_admin, is_editor_or_admin=is_editor_or_admin) # <-- این خط صحیح است
+                           is_admin=is_admin, is_editor_or_admin=is_editor_or_admin)
 
 @app.route('/add')
 @login_required
@@ -290,7 +300,8 @@ def delete_user(user_id):
 @login_required
 def backup_db():
     if not is_admin(): return redirect(url_for('index'))
-    return send_file('database.db', as_attachment=True, download_name=f'backup_{jdatetime.datetime.now().strftime("%Y-%m-%d")}.db')
+    db_path = os.path.join("/opt/render/project/data", 'database.db')
+    return send_file(db_path, as_attachment=True, download_name=f'backup_{jdatetime.datetime.now().strftime("%Y-%m-%d")}.db')
 
 @app.route('/restore', methods=['POST'])
 @login_required
@@ -300,7 +311,8 @@ def restore_db():
     file = request.files['file']
     if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
     if file and file.filename.endswith('.db'):
-        file.save('database.db')
+        db_path = os.path.join("/opt/render/project/data", 'database.db')
+        file.save(db_path)
         flash('پشتیبان با موفقیت بازیابی شد.', 'success')
     else:
         flash('فایل نامعتبر است. فقط فایل‌های .db مجاز هستند.', 'danger')
