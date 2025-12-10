@@ -54,7 +54,7 @@
                 {% endif %}
                 {% if is_admin() %}
                     <a href="{{ url_for('manage_users') }}" style="background-color: #6c757d;">مدیریت کاربران</a>
-                    <a href="{{ url_for('bulk_upload') }}" style="background-color: #17a2b8;">آپلود گروهی</a>
+                    <a href="{{ url_for('bulk_upload_page') }}" style="background-color: #17a2b8;">آپلود گروهی</a>
                     <a href="{{ url_for('backup') }}" style="background-color: #28a745;">پشتیبان‌گیری</a>
                 {% endif %}
                 <a href="{{ url_for('logout') }}" class="logout-btn">خروج ({{ current_user.display_name }})</a>
