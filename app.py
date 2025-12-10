@@ -11,6 +11,18 @@ app = Flask(__name__)
 app.secret_key = 'your-very-secret-key-here'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
+# --- فیلتر جینجا برای نمایش درصد ---
+@app.template_filter('percentage')
+def percentage_filter(value):
+    if isinstance(value, str) and value.strip().endswith('%'):
+        return value
+    try:
+        # اگر عدد بود، آن را به درصد تبدیل کن
+        num = float(value)
+        return f"{num}%"
+    except (ValueError, TypeError):
+        return value # اگر عدد نبود، همان مقدار را برگردان
+
 # --- تنظیمات Flask-Login ---
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -52,7 +64,6 @@ def get_db_connection():
     دیتابیس در یک مسیر دائمی (Persistent Disk) در Render ذخیره می‌شود
     تا اطلاعات با هر بار اجرای مجدد برنامه از بین نرود.
     """
-    # این مسیر یک دیسک دائمی است که Render فراهم می‌کند
     db_dir = "/opt/render/project/data"
     if not os.path.exists(db_dir):
         os.makedirs(db_dir)
@@ -153,7 +164,6 @@ def index():
     
     reports_db = conn.execute(query, params).fetchall()
     
-    # تبدیل تاریخ به شمسی و اعداد به فارسی
     reports = []
     for report in reports_db:
         report_list = dict(report)
@@ -276,6 +286,7 @@ def submit_user():
         try:
             conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
                        (username, generate_password_hash(password), display_name, role))
+            conn.commit() # <<<< این خط اضافه شد
             flash('کاربر با موفقیت اضافه شد.', 'success')
         except sqlite3.IntegrityError:
             flash('نام کاربری تکراری است.', 'danger')
@@ -352,15 +363,28 @@ def process_bulk_upload():
 def arrears_report():
     if not is_editor_or_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
-    reports_db = conn.execute("SELECT * FROM reports WHERE arrears_payment IS NOT NULL AND arrears_payment != '100%' ORDER BY province, unit_name, year DESC, month DESC").fetchall()
+    
+    # کوئری اصلاح شده: تمام گزارش‌هایی که یکی از پرداخت‌ها 100% نیست
+    query = """
+        SELECT * FROM reports WHERE 
+        (staff_payment IS NOT NULL AND staff_payment != '100%') OR
+        (faculty_payment IS NOT NULL AND faculty_payment != '100%') OR
+        (arrears_payment IS NOT NULL AND arrears_payment != '100%')
+        ORDER BY province, unit_name, year DESC, month DESC
+    """
+    reports_db = conn.execute(query).fetchall()
     conn.close()
     
     reports = []
     for report in reports_db:
         report_list = dict(report)
-        if report_list['submission_date']:
-            g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
-            report_list['submission_date_persian'] = g_date.strftime('%Y/%m/%d %H:%M')
+        # اضافه کردن try-except برای جلوگیری از خطا در تبدیل تاریخ
+        try:
+            if report_list['submission_date']:
+                g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
+                report_list['submission_date_persian'] = g_date.strftime('%Y/%m/%d %H:%M')
+        except (ValueError, TypeError):
+            report_list['submission_date_persian'] = 'نامشخص'
         reports.append(report_list)
 
     return render_template('arrears_report.html', reports=reports, to_persian_number=to_persian_number)
