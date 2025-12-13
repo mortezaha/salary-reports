@@ -14,14 +14,14 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آ�
 # --- فیلتر جینجا برای نمایش درصد ---
 @app.template_filter('percentage')
 def percentage_filter(value):
+    """فیلتری برای نمایش صحیح اعداد به صورت درصد (مثلاً 95%)"""
     if isinstance(value, str) and value.strip().endswith('%'):
         return value
     try:
-        # اگر عدد بود، آن را به درصد تبدیل کن
         num = float(value)
-        return f"{num}%"
+        return f"{int(num)}%"
     except (ValueError, TypeError):
-        return value # اگر عدد نبود، همان مقدار را برگردان
+        return value
 
 # --- تنظیمات Flask-Login ---
 login_manager = LoginManager()
@@ -318,15 +318,27 @@ def backup_db():
 @login_required
 def restore_db():
     if not is_admin(): return redirect(url_for('index'))
-    if 'file' not in request.files: flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
+    if 'file' not in request.files:
+        flash('فایلی انتخاب نشده است.', 'danger')
+        return redirect(url_for('index'))
+    
     file = request.files['file']
-    if file.filename == '': flash('فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('index'))
+    if file.filename == '':
+        flash('فایلی انتخاب نشده است.', 'danger')
+        return redirect(url_for('index'))
+
     if file and file.filename.endswith('.db'):
         db_path = os.path.join("/opt/render/project/data", 'database.db')
-        file.save(db_path)
-        flash('پشتیبان با موفقیت بازیابی شد.', 'success')
+        try:
+            if os.path.exists(db_path):
+                os.remove(db_path)
+            file.save(db_path)
+            flash('پشتیبان با موفقیت بازیابی شد.', 'success')
+        except Exception as e:
+            flash(f'خطا در بازیابی پشتیبان: {e}', 'danger')
     else:
         flash('فایل نامعتبر است. فقط فایل‌های .db مجاز هستند.', 'danger')
+    
     return redirect(url_for('index'))
 
 # --- مسیر آپلود گروهی ---
@@ -378,7 +390,6 @@ def arrears_report():
     reports = []
     for report in reports_db:
         report_list = dict(report)
-        # اضافه کردن try-except برای جلوگیری از خطا در تبدیل تاریخ
         try:
             if report_list['submission_date']:
                 g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
