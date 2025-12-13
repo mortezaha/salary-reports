@@ -11,7 +11,8 @@ app = Flask(__name__)
 app.secret_key = 'your-very-secret-key-here'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
-# --- فیلتر جینجا برای نمایش درصد ---
+# --- فیلترهای جینجا ---
+
 @app.template_filter('percentage')
 def percentage_filter(value):
     """فیلتری برای نمایش صحیح اعداد به صورت درصد (مثلاً 95%)"""
@@ -22,6 +23,13 @@ def percentage_filter(value):
         return f"{int(num)}%"
     except (ValueError, TypeError):
         return value
+
+@app.template_filter('to_persian_number')
+def to_persian_number_filter(s):
+    """فیلتری برای تبدیل اعداد لاتین به فارسی"""
+    persian_digits = "۰۱۲۳۴۵۶۷۸۹"
+    s = str(s)
+    return s.translate(str.maketrans("0123456789", persian_digits))
 
 # --- تنظیمات Flask-Login ---
 login_manager = LoginManager()
@@ -59,17 +67,10 @@ def load_user(user_id):
 
 # --- توابع دیتابیس ---
 def get_db_connection():
-    """
-    این تابع یک اتصال به دیتابیس SQLite برمی‌گرداند.
-    دیتابیس در یک مسیر دائمی (Persistent Disk) در Render ذخیره می‌شود
-    تا اطلاعات با هر بار اجرای مجدد برنامه از بین نرود.
-    """
     db_dir = "/opt/render/project/data"
     if not os.path.exists(db_dir):
         os.makedirs(db_dir)
-    
     db_path = os.path.join(db_dir, 'database.db')
-    
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -78,7 +79,6 @@ def ensure_db_exists():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # جدول کاربران
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +89,7 @@ def ensure_db_exists():
     )
     ''')
     
-    # جدول گزارش‌ها
+    # تغییر نوع ستون submission_date به TEXT برای ذخیره تاریخ شمسی
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,12 +100,11 @@ def ensure_db_exists():
         staff_payment TEXT,
         faculty_payment TEXT,
         arrears_payment TEXT,
-        submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        submission_date TEXT,
         submitted_by TEXT
     )
     ''')
     
-    # ایجاد کاربر ادمین پیش‌فرض اگر وجود نداشته باشد
     admin_user = cursor.execute('SELECT * FROM users WHERE username = ?', ('admin',)).fetchone()
     if not admin_user:
         cursor.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
@@ -115,11 +114,6 @@ def ensure_db_exists():
     conn.close()
 
 ensure_db_exists()
-
-def to_persian_number(s):
-    persian_digits = "۰۱۲۳۴۵۶۷۸۹"
-    s = str(s)
-    return s.translate(str.maketrans("0123456789", persian_digits))
 
 # --- توابع بررسی سطح دسترسی ---
 def is_admin():
@@ -163,20 +157,14 @@ def index():
     query += ' ORDER BY year DESC, month DESC, submission_date DESC'
     
     reports_db = conn.execute(query, params).fetchall()
-    
-    reports = []
-    for report in reports_db:
-        report_list = dict(report)
-        if report_list['submission_date']:
-            g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
-            report_list['submission_date_persian'] = g_date.strftime('%Y/%m/%d %H:%M')
-        reports.append(report_list)
-
     conn.close()
     
+    # نیازی به تبدیل تاریخ نیست، چون از قبل به شمسی ذخیره شده
+    reports = [dict(report) for report in reports_db]
+
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
                            selected_province=filter_province, selected_month=filter_month, selected_year=filter_year,
-                           provinces=PROVINCE_UNITS.keys(), to_persian_number=to_persian_number, 
+                           provinces=PROVINCE_UNITS.keys(), 
                            is_admin=is_admin, is_editor_or_admin=is_editor_or_admin)
 
 @app.route('/add')
@@ -201,6 +189,10 @@ def submit():
     report_id = request.form.get('report_id')
     province = request.form['province']; unit_name = request.form['unit_name']; month = request.form['month']; year = request.form['year']
     staff_payment = request.form['staff_payment']; faculty_payment = request.form['faculty_payment']; arrears_payment = request.form['arrears_payment']
+    
+    # ثبت تاریخ و زمان به صورت شمسی
+    persian_submission_date = jdatetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
+
     if province and unit_name and month and year:
         conn = get_db_connection()
         if report_id:
@@ -208,8 +200,8 @@ def submit():
                         (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, report_id))
             flash('گزارش با موفقیت ویرایش شد.', 'success')
         else:
-            conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, current_user.display_name))
+            conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submission_date, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, persian_submission_date, current_user.display_name))
             flash('گزارش با موفقیت ثبت شد.', 'success')
         conn.commit(); conn.close()
         return redirect(url_for('index'))
@@ -238,7 +230,7 @@ def bulk_delete():
     conn.execute(f'DELETE FROM reports WHERE id IN ({placeholders})', report_ids)
     conn.commit()
     conn.close()
-    flash(f'{to_persian_number(len(report_ids))} گزارش با موفقیت حذف شدند.', 'info')
+    flash(f'{len(report_ids)} گزارش با موفقیت حذف شدند.', 'info')
     return redirect(url_for('index'))
 
 @app.route('/get_units/<province>')
@@ -255,7 +247,7 @@ def manage_users():
     conn = get_db_connection()
     users = conn.execute('SELECT id, username, display_name, role FROM users').fetchall()
     conn.close()
-    return render_template('manage_users.html', users=users, to_persian_number=to_persian_number)
+    return render_template('manage_users.html', users=users)
 
 @app.route('/add_user')
 @login_required
@@ -286,7 +278,7 @@ def submit_user():
         try:
             conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
                        (username, generate_password_hash(password), display_name, role))
-            conn.commit() # <<<< این خط اضافه شد
+            conn.commit()
             flash('کاربر با موفقیت اضافه شد.', 'success')
         except sqlite3.IntegrityError:
             flash('نام کاربری تکراری است.', 'danger')
@@ -330,10 +322,15 @@ def restore_db():
     if file and file.filename.endswith('.db'):
         db_path = os.path.join("/opt/render/project/data", 'database.db')
         try:
+            # بستن تمام اتصالات ممکن قبل از جایگزینی فایل
+            # این کار برای جلوگیری از قفل شدن دیتابیس SQLite ضروری است
+            conn = get_db_connection()
+            conn.close()
+            
             if os.path.exists(db_path):
                 os.remove(db_path)
             file.save(db_path)
-            flash('پشتیبان با موفقیت بازیابی شد.', 'success')
+            flash('پشتیبان با موفقیت بازیابی شد. برای اعمال تغییرات کامل، ممکن است لازم است سرویس را به صورت دستی ری‌استارت کنید.', 'success')
         except Exception as e:
             flash(f'خطا در بازیابی پشتیبان: {e}', 'danger')
     else:
@@ -360,11 +357,12 @@ def process_bulk_upload():
         df = pd.read_excel(file)
         conn = get_db_connection()
         for index, row in df.iterrows():
-            conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                       (row['استان'], row['واحد/مرکز'], row['ماه'], row['سال'], row['درصد کارکنان'], row['درصد هیات علمی'], row['درصد معوقات'], current_user.display_name))
+            persian_submission_date = jdatetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
+            conn.execute('INSERT INTO reports (province, unit_name, month, year, staff_payment, faculty_payment, arrears_payment, submission_date, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                       (row['استان'], row['واحد/مرکز'], row['ماه'], row['سال'], row['درصد کارکنان'], row['درصد هیات علمی'], row['درصد معوقات'], persian_submission_date, current_user.display_name))
         conn.commit()
         conn.close()
-        flash(f'{to_persian_number(len(df))} گزارش با موفقیت آپلود شدند.', 'success')
+        flash(f'{len(df)} گزارش با موفقیت آپلود شدند.', 'success')
     except Exception as e:
         flash(f'خطا در پردازش فایل: {e}', 'danger')
     return redirect(url_for('index'))
@@ -376,7 +374,6 @@ def arrears_report():
     if not is_editor_or_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
     
-    # کوئری اصلاح شده: تمام گزارش‌هایی که یکی از پرداخت‌ها 100% نیست
     query = """
         SELECT * FROM reports WHERE 
         (staff_payment IS NOT NULL AND staff_payment != '100%') OR
@@ -387,18 +384,9 @@ def arrears_report():
     reports_db = conn.execute(query).fetchall()
     conn.close()
     
-    reports = []
-    for report in reports_db:
-        report_list = dict(report)
-        try:
-            if report_list['submission_date']:
-                g_date = jdatetime.datetime.strptime(report_list['submission_date'], '%Y-%m-%d %H:%M:%S')
-                report_list['submission_date_persian'] = g_date.strftime('%Y/%m/%d %H:%M')
-        except (ValueError, TypeError):
-            report_list['submission_date_persian'] = 'نامشخص'
-        reports.append(report_list)
+    reports = [dict(report) for report in reports_db]
 
-    return render_template('arrears_report.html', reports=reports, to_persian_number=to_persian_number)
+    return render_template('arrears_report.html', reports=reports)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

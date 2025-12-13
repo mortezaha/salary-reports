@@ -4,11 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سیستم گزارش‌گیری حقوق و دستمزد</title>
+    <!-- بارگذاری فونت فارسی از گوگل فونت -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Vazirmatn', sans-serif; background-color: #f8f9fa; }
-        .navbar { background-color: #343a40; }
+        body { 
+            font-family: 'Vazirmatn', sans-serif; 
+            background-color: #f8f9fa; 
+            font-size: 0.95rem;
+        }
+        .navbar { 
+            background-color: #343a40; 
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
         .table-responsive { font-size: 0.9em; }
+        .card {
+            box-shadow: 0 2px 6px rgba(0,0,0,.08);
+            border: none;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
         @media print {
             body * { visibility: hidden; }
             .table-responsive, .table-responsive * { visibility: visible; }
@@ -18,11 +37,10 @@
     </style>
 </head>
 <body>
-
     <!-- نوار ناوبری -->
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('index') }}">گزارش حقوق و دستمزد</a>
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">گزارش حقوق و دستمزد</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -34,7 +52,6 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('arrears_report') }}">گزارش معوقات</a></li>
                     {% endif %}
                     {% if is_admin() %}
-                    <!-- منوی کشویی مدیریت -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             مدیریت
@@ -51,7 +68,7 @@
                 </ul>
                 <span class="navbar-text">
                     خوش آمدید، {{ current_user.display_name }} |
-                    <a href="{{ url_for('logout') }}" class="text-light">خروج</a>
+                    <a href="{{ url_for('logout') }}" class="text-light text-decoration-none">خروج</a>
                 </span>
             </div>
         </div>
@@ -73,7 +90,7 @@
         <!-- فیلترها و دکمه چاپ -->
         <div class="card mb-4 no-print">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>فیلتر گزارش‌ها</h4>
+                <h4 class="mb-0">فیلتر گزارش‌ها</h4>
                 <button onclick="window.print()" class="btn btn-secondary">چاپ گزارش</button>
             </div>
             <div class="card-body">
@@ -101,7 +118,7 @@
                             <label for="year" class="form-label">سال</label>
                             <select name="year" id="year" class="form-select" onchange="document.getElementById('filterForm').submit();">
                                 {% for year in years %}
-                                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year | to_persian_number }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -113,7 +130,7 @@
         <!-- جدول گزارش‌ها -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center no-print">
-                <h4>لیست گزارش‌ها</h4>
+                <h4 class="mb-0">لیست گزارش‌ها</h4>
                  {% if is_editor_or_admin() %}
                 <form method="POST" action="{{ url_for('bulk_delete') }}" id="bulkDeleteForm">
                     <button type="submit" class="btn btn-danger btn-sm">حذف گروهی انتخاب شده‌ها</button>
@@ -135,12 +152,12 @@
                         <tbody>
                             {% for report in reports %}
                             <tr>
-                                {% if is_editor_or_admin() %}<td><input type="checkbox" name="report_ids" value="{{ report.id }}" form="bulkDeleteForm"></td>{% endif %}
-                                <td>{{ report.province }}</td><td>{{ report.unit_name }}</td><td>{{ report.month }}</td><td>{{ report.year }}</td>
+                                {% if is_editor_or_admin() %}<td><input type="checkbox" name="report_ids" value="{{ report.id | to_persian_number }}" form="bulkDeleteForm"></td>{% endif %}
+                                <td>{{ report.province }}</td><td>{{ report.unit_name }}</td><td>{{ report.month }}</td><td>{{ report.year | to_persian_number }}</td>
                                 <td>{{ report.staff_payment | percentage }}</td>
                                 <td>{{ report.faculty_payment | percentage }}</td>
                                 <td>{{ report.arrears_payment | percentage }}</td>
-                                <td>{{ report.submission_date_persian }}</td><td>{{ report.submitted_by }}</td>
+                                <td>{{ report.submission_date | to_persian_number }}</td><td>{{ report.submitted_by }}</td>
                                 {% if is_editor_or_admin() %}
                                 <td>
                                     <a href="{{ url_for('edit_report', report_id=report.id) }}" class="btn btn-sm btn-info">ویرایش</a>
@@ -187,7 +204,6 @@
         </div>
     </div>
 
-    <!-- اسکریپت بوت‌استرپ -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.getElementById('selectAll').addEventListener('change', function() {
