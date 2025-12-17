@@ -12,7 +12,6 @@ app.secret_key = 'your-very-secret-key-here'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
 # --- فیلترهای جینجا ---
-
 @app.template_filter('percentage')
 def percentage_filter(value):
     """فیلتری برای نمایش صحیح اعداد به صورت درصد (مثلاً 95%)"""
@@ -89,7 +88,6 @@ def ensure_db_exists():
     )
     ''')
     
-    # تغییر نوع ستون submission_date به TEXT برای ذخیره تاریخ شمسی
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,7 +157,6 @@ def index():
     reports_db = conn.execute(query, params).fetchall()
     conn.close()
     
-    # نیازی به تبدیل تاریخ نیست، چون از قبل به شمسی ذخیره شده
     reports = [dict(report) for report in reports_db]
 
     return render_template('index.html', reports=reports, months=MONTHS, years=YEARS,
@@ -170,7 +167,9 @@ def index():
 @app.route('/add')
 @login_required
 def add_report():
-    return render_template('add_report.html', months=MONTHS, years=YEARS, provinces=PROVINCE_UNITS.keys())
+    # محاسبه سال جاری شمسی برای استفاده به عنوان پیش‌فرض
+    current_year = jdatetime.datetime.now().strftime('%Y')
+    return render_template('add_report.html', months=MONTHS, years=YEARS, current_year=current_year, provinces=PROVINCE_UNITS.keys())
 
 @app.route('/edit/<int:report_id>')
 @login_required
@@ -190,7 +189,6 @@ def submit():
     province = request.form['province']; unit_name = request.form['unit_name']; month = request.form['month']; year = request.form['year']
     staff_payment = request.form['staff_payment']; faculty_payment = request.form['faculty_payment']; arrears_payment = request.form['arrears_payment']
     
-    # ثبت تاریخ و زمان به صورت شمسی
     persian_submission_date = jdatetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
 
     if province and unit_name and month and year:
@@ -322,8 +320,6 @@ def restore_db():
     if file and file.filename.endswith('.db'):
         db_path = os.path.join("/opt/render/project/data", 'database.db')
         try:
-            # بستن تمام اتصالات ممکن قبل از جایگزینی فایل
-            # این کار برای جلوگیری از قفل شدن دیتابیس SQLite ضروری است
             conn = get_db_connection()
             conn.close()
             
@@ -384,7 +380,12 @@ def arrears_report():
     reports_db = conn.execute(query).fetchall()
     conn.close()
     
-    reports = [dict(report) for report in reports_db]
+    reports = []
+    for report in reports_db:
+        report_list = dict(report)
+        # اطمینان از اینکه تاریخ ثبت وجود دارد، در غیر این صورت یک مقدار پیش‌فرض قرار می‌دهیم
+        report_list['submission_date_persian'] = report_list.get('submission_date', 'نامشخص')
+        reports.append(report_list)
 
     return render_template('arrears_report.html', reports=reports)
 
