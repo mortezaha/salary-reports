@@ -28,7 +28,7 @@
                 <h4>{% if user %}ویرایش کاربر: {{ user.display_name }}{% else %}افزودن کاربر جدید{% endif %}</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" action="{{ url_for('submit_user') }}">
                     {% if user %}
                     <input type="hidden" name="user_id" value="{{ user.id }}">
                     {% endif %}

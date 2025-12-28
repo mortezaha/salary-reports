@@ -12,6 +12,7 @@ app.secret_key = 'your-very-secret-key-here'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
 # --- فیلترهای جینجا ---
+
 @app.template_filter('percentage')
 def percentage_filter(value):
     """فیلتری برای نمایش صحیح اعداد به صورت درصد (مثلاً 95%)"""
@@ -66,6 +67,7 @@ def load_user(user_id):
 
 # --- توابع دیتابیس ---
 def get_db_connection():
+    """این تابع یک اتصال به دیتابیس SQLite برمی‌گرداند."""
     db_dir = "/opt/render/project/data"
     if not os.path.exists(db_dir):
         os.makedirs(db_dir)
@@ -75,6 +77,7 @@ def get_db_connection():
     return conn
 
 def ensure_db_exists():
+    """این تابع جداول مورد نیاز را در دیتابیس ایجاد می‌کند."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -147,7 +150,8 @@ def logout():
 @login_required
 def index():
     conn = get_db_connection()
-    filter_province = request.args.get('province', ''); filter_month = request.args.get('month', ''); filter_year = request.args.get('year', '1404')
+    filter_province = request.args.get('province', ''); filter_month = request.args.get('month', ''); filter_year = request.args.get('year', '')
+    
     query = 'SELECT * FROM reports WHERE 1=1'; params = []
     if filter_province: query += ' AND province = ?'; params.append(filter_province)
     if filter_month: query += ' AND month = ?'; params.append(filter_month)
@@ -167,7 +171,6 @@ def index():
 @app.route('/add')
 @login_required
 def add_report():
-    # محاسبه سال جاری شمسی برای استفاده به عنوان پیش‌فرض
     current_year = jdatetime.datetime.now().strftime('%Y')
     return render_template('add_report.html', months=MONTHS, years=YEARS, current_year=current_year, provinces=PROVINCE_UNITS.keys())
 
@@ -271,24 +274,47 @@ def submit_user():
     if not is_admin(): return redirect(url_for('index'))
     user_id = request.form.get('user_id')
     username = request.form['username']; display_name = request.form['display_name']; role = request.form['role']; password = request.form['password']
-    if username and display_name and role:
-        conn = get_db_connection()
-        try:
+    
+    if not username or not display_name or not role:
+        flash('لطفاً فیلدهای ضروری را پر کنید.', 'danger')
+        return redirect(url_for('manage_users'))
+
+    conn = get_db_connection()
+    try:
+        if user_id: # این یک ویرایش است
+            update_fields = ['username = ?', 'display_name = ?', 'role = ?']
+            update_values = [username, display_name, role]
+            if password: # اگر رمز عبور جدیدی وارد شده باشد
+                update_fields.append('password_hash = ?')
+                update_values.append(generate_password_hash(password))
+            
+            update_values.append(user_id)
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+            conn.execute(query, update_values)
+            flash('کاربر با موفقیت ویرایش شد.', 'success')
+        else: # این یک افزودن کاربر جدید است
+            if not password:
+                flash('برای کاربر جدید، رمز عبور الزامی است.', 'danger')
+                return redirect(url_for('manage_users'))
             conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
                        (username, generate_password_hash(password), display_name, role))
-            conn.commit()
             flash('کاربر با موفقیت اضافه شد.', 'success')
-        except sqlite3.IntegrityError:
-            flash('نام کاربری تکراری است.', 'danger')
-        finally:
-            conn.close()
+        
+        conn.commit()
+    except sqlite3.IntegrityError:
+        flash('نام کاربری تکراری است.', 'danger')
+    finally:
+        conn.close()
+    
     return redirect(url_for('manage_users'))
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 def delete_user(user_id):
     if not is_admin(): return redirect(url_for('index'))
-    if str(user_id) == current_user.id: flash('نمی‌توانید حساب خود را حذف کنید.', 'warning'); return redirect(url_for('manage_users'))
+    if str(user_id) == current_user.id: 
+        flash('نمی‌توانید حساب خود را حذف کنید.', 'warning')
+        return redirect(url_for('manage_users'))
     conn = get_db_connection()
     conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
@@ -326,7 +352,7 @@ def restore_db():
             if os.path.exists(db_path):
                 os.remove(db_path)
             file.save(db_path)
-            flash('پشتیبان با موفقیت بازیابی شد. برای اعمال تغییرات کامل، ممکن است لازم است سرویس را به صورت دستی ری‌استارت کنید.', 'success')
+            flash('پشتیبان با موفقیت بازیابی شد.', 'success')
         except Exception as e:
             flash(f'خطا در بازیابی پشتیبان: {e}', 'danger')
     else:
@@ -370,11 +396,10 @@ def arrears_report():
     if not is_editor_or_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
     
+    # کوئری جدید: فقط گزارش‌هایی که درصد معوقات آن‌ها زیر 100% است
     query = """
         SELECT * FROM reports WHERE 
-        (staff_payment IS NOT NULL AND staff_payment != '100%') OR
-        (faculty_payment IS NOT NULL AND faculty_payment != '100%') OR
-        (arrears_payment IS NOT NULL AND arrears_payment != '100%')
+        arrears_payment IS NOT NULL AND arrears_payment != '100%'
         ORDER BY province, unit_name, year DESC, month DESC
     """
     reports_db = conn.execute(query).fetchall()
