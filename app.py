@@ -12,7 +12,6 @@ app.secret_key = 'your-very-secret-key-here'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # محدودیت حجم آپلود 16 مگابایت
 
 # --- فیلترهای جینجا ---
-
 @app.template_filter('percentage')
 def percentage_filter(value):
     """فیلتری برای نمایش صحیح اعداد به صورت درصد (مثلاً 95%)"""
@@ -55,6 +54,7 @@ class User(UserMixin):
         self.password_hash = user_data['password_hash']
         self.display_name = user_data['display_name']
         self.role = user_data['role']
+        self.province = user_data.get('province') # اضافه شدن استان
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -87,10 +87,17 @@ def ensure_db_exists():
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         display_name TEXT NOT NULL,
-        role TEXT NOT NULL
+        role TEXT NOT NULL,
+        province TEXT
     )
     ''')
     
+    # اضافه کردن ستون province به جدول کاربران در صورت وجود نداشتن
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN province TEXT')
+    except sqlite3.OperationalError:
+        pass # ستون از قبل وجود دارد
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,9 +157,18 @@ def logout():
 @login_required
 def index():
     conn = get_db_connection()
-    filter_province = request.args.get('province', ''); filter_month = request.args.get('month', ''); filter_year = request.args.get('year', '')
     
-    query = 'SELECT * FROM reports WHERE 1=1'; params = []
+    # تعیین استان برای فیلتر کردن
+    # اگر کاربر ادمین نباشد، فقط می‌تواند گزارش‌های استان خودش را ببیند
+    filter_province = request.args.get('province', '')
+    if not is_admin():
+        filter_province = current_user.province
+    
+    filter_month = request.args.get('month', '')
+    filter_year = request.args.get('year', '')
+
+    query = 'SELECT * FROM reports WHERE 1=1'
+    params = []
     if filter_province: query += ' AND province = ?'; params.append(filter_province)
     if filter_month: query += ' AND month = ?'; params.append(filter_month)
     if filter_year: query += ' AND year = ?'; params.append(filter_year)
@@ -246,15 +262,15 @@ def get_units(province):
 def manage_users():
     if not is_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
-    users = conn.execute('SELECT id, username, display_name, role FROM users').fetchall()
+    users = conn.execute('SELECT id, username, display_name, role, province FROM users').fetchall()
     conn.close()
-    return render_template('manage_users.html', users=users)
+    return render_template('manage_users.html', users=users, provinces=PROVINCE_UNITS.keys())
 
 @app.route('/add_user')
 @login_required
 def add_user():
     if not is_admin(): return redirect(url_for('index'))
-    return render_template('user_form.html', user=None, roles=['admin', 'editor', 'viewer'])
+    return render_template('user_form.html', user=None, roles=['admin', 'editor', 'viewer'], provinces=PROVINCE_UNITS.keys())
 
 @app.route('/edit_user/<int:user_id>')
 @login_required
@@ -266,14 +282,14 @@ def edit_user(user_id):
     if user is None:
         flash('کاربر یافت نشد.', 'danger')
         return redirect(url_for('manage_users'))
-    return render_template('user_form.html', user=user, roles=['admin', 'editor', 'viewer'])
+    return render_template('user_form.html', user=user, roles=['admin', 'editor', 'viewer'], provinces=PROVINCE_UNITS.keys())
 
 @app.route('/submit_user', methods=['POST'])
 @login_required
 def submit_user():
     if not is_admin(): return redirect(url_for('index'))
     user_id = request.form.get('user_id')
-    username = request.form['username']; display_name = request.form['display_name']; role = request.form['role']; password = request.form['password']
+    username = request.form['username']; display_name = request.form['display_name']; role = request.form['role']; password = request.form['password']; province = request.form.get('province')
     
     if not username or not display_name or not role:
         flash('لطفاً فیلدهای ضروری را پر کنید.', 'danger')
@@ -282,8 +298,8 @@ def submit_user():
     conn = get_db_connection()
     try:
         if user_id: # این یک ویرایش است
-            update_fields = ['username = ?', 'display_name = ?', 'role = ?']
-            update_values = [username, display_name, role]
+            update_fields = ['username = ?', 'display_name = ?', 'role = ?', 'province = ?']
+            update_values = [username, display_name, role, province]
             if password: # اگر رمز عبور جدیدی وارد شده باشد
                 update_fields.append('password_hash = ?')
                 update_values.append(generate_password_hash(password))
@@ -296,8 +312,8 @@ def submit_user():
             if not password:
                 flash('برای کاربر جدید، رمز عبور الزامی است.', 'danger')
                 return redirect(url_for('manage_users'))
-            conn.execute('INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
-                       (username, generate_password_hash(password), display_name, role))
+            conn.execute('INSERT INTO users (username, password_hash, display_name, role, province) VALUES (?, ?, ?, ?, ?)',
+                       (username, generate_password_hash(password), display_name, role, province))
             flash('کاربر با موفقیت اضافه شد.', 'success')
         
         conn.commit()
@@ -396,10 +412,11 @@ def arrears_report():
     if not is_editor_or_admin(): return redirect(url_for('index'))
     conn = get_db_connection()
     
-    # کوئری جدید: فقط گزارش‌هایی که درصد معوقات آن‌ها زیر 100% است
+    # کوئری دقیق: فقط گزارش‌هایی که درصد معوقات آن‌ها زیر 100% است
     query = """
         SELECT * FROM reports WHERE 
-        arrears_payment IS NOT NULL AND arrears_payment != '100%'
+        arrears_payment IS NOT NULL AND 
+        arrears_payment NOT IN ('100%', '100')
         ORDER BY province, unit_name, year DESC, month DESC
     """
     reports_db = conn.execute(query).fetchall()
@@ -408,7 +425,6 @@ def arrears_report():
     reports = []
     for report in reports_db:
         report_list = dict(report)
-        # اطمینان از اینکه تاریخ ثبت وجود دارد، در غیر این صورت یک مقدار پیش‌فرض قرار می‌دهیم
         report_list['submission_date_persian'] = report_list.get('submission_date', 'نامشخص')
         reports.append(report_list)
 

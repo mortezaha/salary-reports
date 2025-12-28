@@ -37,6 +37,7 @@
                                 <th>نام کاربری</th>
                                 <th>نام نمایشی</th>
                                 <th>نقش</th>
+                                <th>استان</th>
                                 <th>عملیات</th>
                             </tr>
                         </thead>
@@ -51,6 +52,7 @@
                                     {% if user.role == 'editor' %}<span class="badge bg-primary">ویرایشگر</span>{% endif %}
                                     {% if user.role == 'viewer' %}<span class="badge bg-secondary">بیننده</span>{% endif %}
                                 </td>
+                                <td>{{ user.province or 'همه' }}</td>
                                 <td>
                                     <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-info">ویرایش</a>
                                     <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline;">
@@ -59,7 +61,7 @@
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center">کاربری یافت نشد.</td></tr>
+                            <tr><td colspan="6" class="text-center">کاربری یافت نشد.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

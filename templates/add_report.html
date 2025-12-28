@@ -35,12 +35,17 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="province" class="form-label">استان</label>
-                            <select name="province" id="province" class="form-select" required>
-                                <option value="">انتخاب کنید...</option>
+                            <select name="province" id="province" class="form-select" required {% if not is_admin() %}disabled{% endif %}>
+                                {% if is_admin() %}
+                                    <option value="">انتخاب کنید...</option>
+                                {% endif %}
                                 {% for province in provinces %}
-                                    <option value="{{ province }}" {% if report and report.province == province %}selected{% endif %}>{{ province }}</option>
+                                    <option value="{{ province }}" {% if report and report.province == province %}selected{% elif not report and not is_admin() and province == current_user.province %}selected{% endif %}>{{ province }}</option>
                                 {% endfor %}
                             </select>
+                            {% if not is_admin() %}
+                                <input type="hidden" name="province" value="{{ current_user.province }}">
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <label for="unit_name" class="form-label">واحد/مرکز</label>
@@ -64,7 +69,7 @@
                             <label for="year" class="form-label">سال</label>
                             <select name="year" id="year" class="form-select" required>
                                 {% for year in years %}
-                                    <option value="{{ year }}" {% if report and report.year == year %}selected{% elif not report and year == current_year %}selected{% endif %}>{{ year }}</option>
+                                    <option value="{{ year }}" {% if report and report.year == year %}selected{% elif not report and year == current_year %}selected{% endif %}">{{ year }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -91,47 +96,38 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const provinceSelect = document.getElementById('province');
-        const unitSelect = document.getElementById('unit_name');
+        document.addEventListener('DOMContentLoaded', function() {
+            const provinceSelect = document.getElementById('province');
+            const unitSelect = document.getElementById('unit_name');
 
-        const provinceUnits = {
-            "همدان": ["همدان", "ملایر", "تویسرکان", "اسدآباد", "مرکز بهار", "مرکز کبودرآهنگ", "مرکز رزن", "مرکز قروه در گزین", "مرکز سامن"],
-            "مرکزی": ["اراک", "ساوه", "آشتیان", "تفرش", "نراق", "کمیجان", "مرکز خنداب", "خمین", "محلات", "دلیجان", "زرندیه", "مرکز جاسب", "مرکز مهاجران", "مرکز شازند", "مرکز آستانه", "فراهان"],
-            "کردستان": ["سنندج", "سقز", "مریوان", "قروه", "بیجار", "مرکز بانه"],
-            "کرمانشاه": ["کرمانشاه", "اسلام آباد غرب", "کنگاور", "صحنه", "مرکز روانسر", "مرکز هرسین", "گیلانغرب", "مرکز قصر شیرین", "مرکز سنقر کلیایی"],
-            "لرستان": ["واحد خرم آباد", "واحد بروجرد", "واحد الیگودرز", "واحد دورود"]
-        };
+            const provinceUnits = {
+                "همدان": ["همدان", "ملایر", "تویسرکان", "اسدآباد", "مرکز بهار", "مرکز کبودرآهنگ", "مرکز رزن", "مرکز قروه در گزین", "مرکز سامن"],
+                "مرکزی": ["اراک", "ساوه", "آشتیان", "تفرش", "نراق", "کمیجان", "مرکز خنداب", "خمین", "محلات", "دلیجان", "زرندیه", "مرکز جاسب", "مرکز مهاجران", "مرکز شازند", "مرکز آستانه", "فراهان"],
+                "کردستان": ["سنندج", "سقز", "مریوان", "قروه", "بیجار", "مرکز بانه"],
+                "کرمانشاه": ["کرمانشاه", "اسلام آباد غرب", "کنگاور", "صحنه", "مرکز روانسر", "مرکز هرسین", "گیلانغرب", "مرکز قصر شیرین", "مرکز سنقر کلیایی"],
+                "لرستان": ["واحد خرم آباد", "واحد بروجرد", "واحد الیگودرز", "واحد دورود"]
+            };
 
-        function updateUnits() {
-            const selectedProvince = provinceSelect.value;
-            console.log("استان انتخاب شده:", selectedProvince); // برای دیباگ
-
-            // پاک کردن گزینه‌های قبلی
-            unitSelect.innerHTML = '';
-
-            if (selectedProvince && provinceUnits[selectedProvince]) {
-                provinceUnits[selectedProvince].forEach(unit => {
-                    const option = document.createElement('option');
-                    option.value = unit;
-                    option.textContent = unit;
-                    unitSelect.appendChild(option);
-                });
-            } else {
-                const defaultOption = document.createElement('option');
-                defaultOption.value = "";
-                defaultOption.textContent = "ابتدا استان را انتخاب کنید";
-                unitSelect.appendChild(defaultOption);
+            function updateUnits() {
+                const selectedProvince = provinceSelect.value;
+                unitSelect.innerHTML = '';
+                if (selectedProvince && provinceUnits[selectedProvince]) {
+                    provinceUnits[selectedProvince].forEach(unit => {
+                        const option = document.createElement('option');
+                        option.value = unit;
+                        option.textContent = unit;
+                        unitSelect.appendChild(option);
+                    });
+                } else {
+                    unitSelect.innerHTML = '<option value="">ابتدا استان را انتخاب کنید</option>';
+                }
             }
-        }
 
-        provinceSelect.addEventListener('change', updateUnits);
-        
-        // در حالت ویرایش، واحدها را بر اساس استان موجود بارگذاری کن
-        if (provinceSelect.value) {
-            updateUnits();
-        }
-    });
+            provinceSelect.addEventListener('change', updateUnits);
+            if (provinceSelect.value) {
+                updateUnits();
+            }
+        });
     </script>
 </body>
 </html>
